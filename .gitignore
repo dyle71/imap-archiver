@@ -1,0 +1,9 @@
+# vi swap files
+.*.swp
+
+# build folder
+build/
+
+# python caches
+__pycache__
+
