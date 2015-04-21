@@ -35,7 +35,6 @@ import __init__ as imap_archiver
 # ------------------------------------------------------------
 # code
 
-
 def imap_connect(host, port, user, password):
 
     """Connect to the IMAP server"""
@@ -101,7 +100,6 @@ def main():
     con = imap_connect(args.host, args.port, args.user, args.password)
     imap_work(con)
     imap_disconnect(con)
-
 
 
 def show_version():
