@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ------------------------------------------------------------
-# main.py
+# imap-archiver.py
 # 
 # startup for IMAP Archiver
 #
@@ -25,8 +25,10 @@
 # imports
 
 import argparse
-import logging
 import getpass
+import imaplib
+import logging
+import re
 import sys
 
 import __init__ as imap_archiver
@@ -40,13 +42,49 @@ def imap_connect(host, port, user, password):
     """Connect to the IMAP server"""
 
     logging.info('connecting server %s:%d' % (host, port))
+    try:
+        con = imaplib.IMAP4_SSL(host, port)
+    except Exception as err:
+        logging.error('connecting server %s:%d failed: %s' % (host, port, str(err)))
+        sys.exit(1)
+
+    logging.info('server %s:%d connected' % (host, port))
+    auth_method = []
+    try:
+        
+        # check for authentication methods
+        res, capabilities = con.capability()
+        logging.debug('server capabilities:')
+        for cap in capabilities[0].split():
+            c = cap.decode('UTF-8')
+            logging.debug('\t%s' % c)
+            m = re.match('AUTH=(.*)', c)
+            if m is not None and len(m.groups()) == 1:
+                auth_method.append(m.groups()[0])
+        
+        # go for suitable authentication
+        for a in auth_method:
+            logging.debug('found authentication: %s' % a)
+        if 'CRAM-MD5' in auth_method:
+            res, data = con.login_cram_md5(user, password)
+        else:
+            res, data = con.login(user, password)
+
+    except Exception as err:
+        logging.error('connecting server %s:%d failed: %s' % (host, port, str(err)))
+        sys.exit(1)
+
+    logging.info('user %s logged in' % user)
 
 
-def imap_disconnect(connect):
+def imap_disconnect(connection):
 
     """Disconnect from the IMAP server"""
-
     logging.info('disconnecting from server')
+    try:
+        connection.logout()
+    except:
+        pass
 
 
 def imap_work(connection):
@@ -62,7 +100,7 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
     parser.add_argument('-t', '--host', dest='host', type=str, help='IMAP host name to connect')
-    parser.add_argument('-p', '--port', dest='port', type=int, default=143, help='IMAP host port to connect')
+    parser.add_argument('-p', '--port', dest='port', type=int, default=993, help='IMAP host port to connect')
     parser.add_argument('-u', '--user', dest='user', type=str, help='user account to log in')
     parser.add_argument('-k', '--password', dest='password', type=str, help='user password to log in')
     parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, help='set logging level (see python logging module) - default is WARNING: 30 - the lower the more output')
