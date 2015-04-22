@@ -28,6 +28,8 @@
 # imports
 
 import argparse
+import datetime
+import email
 import getpass
 import imaplib
 import logging
@@ -39,6 +41,7 @@ import __init__ as imap_archiver
 
 # ------------------------------------------------------------
 # code
+
 
 def imap_connect(host, port, user, password):
 
@@ -92,22 +95,61 @@ def imap_disconnect(connection):
         pass
 
 
+def imap_fetch(connection, mailbox, delimiter):
+
+    """Fetch possible email candidates from the mailbox"""
+
+    # clean up mailbox name
+    mb = mailbox
+    if mb.endswith('"'): mb = mb[:-1]
+    if mb.startswith('"'): mb = mb[1:]
+    if mb.lower() == 'inbox':
+        # ignore all mails in inbox
+        return
+
+    logging.debug('picking mailbox: %s' % mailbox)
+    connection.select(mailbox)
+
+    # only pick emails the user has read already 
+    # and are from the last year but 1
+    search_year = datetime.datetime.today().year - 2
+    search_year = 2011  # DEBUG
+    res, [mail_ids] = connection.search(None, 'SEEN BEFORE 01-Jan-%s' % str(search_year))
+    if mail_ids is None or len(mail_ids) == 0:
+        # no emails which match this criteria
+        return
+
+    mail_ids = mail_ids.decode('UTF-8')
+    mail_ids = ','.join(mail_ids.split(' '))
+    print('mail_ids:')
+    print(mail_ids)
+
+    # get all header data
+    res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
+    print(header_data)
+    print(len(header_data))
+    for i in range(0, int(len(header_data) / 2)):
+        m = email.message_from_string(header_data[i * 2 + 1].decode('UTF-8'))
+        print('Date: %s - From: %s - To: %s - Subject: %s' % (m['Date'], m['From'], m['To'], m['Subject']))
+
+
 def imap_work(connection):
 
     """Do the actual work on the IMAP server"""
-    try:
+    #try:
 
-        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
-        # get all inbox subs
-        res, inbox_list = connection.list('inbox')
+    # get all mailboxes and subs 
+    for top_mailbox in ['inbox', 'sent']:
+        res, inbox_list = connection.list(top_mailbox)
         for i in inbox_list:
             flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-            logging.debug('found mailbox: %s' % mailbox_name)
+            imap_fetch(connection, mailbox_name, delimiter)
 
-    except Exception as err:
-        logging.error('working on mail failed: %s' % str(err))
-        
+    #except Exception as err:
+    #    logging.error('working on mail failed: %s' % str(err))
+       
 
 def main():
     
