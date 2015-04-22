@@ -20,6 +20,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # ------------------------------------------------------------
 
+# thanks to a lot of inspiration from
+# http://pymotw.com/2/imaplib/
+
 
 # ------------------------------------------------------------
 # imports
@@ -71,10 +74,12 @@ def imap_connect(host, port, user, password):
             res, data = con.login(user, password)
 
     except Exception as err:
-        logging.error('connecting server %s:%d failed: %s' % (host, port, str(err)))
+        logging.error('logging into server %s:%d failed: %s' % (host, port, str(err)))
         sys.exit(1)
 
     logging.info('user %s logged in' % user)
+
+    return con
 
 
 def imap_disconnect(connection):
@@ -90,8 +95,19 @@ def imap_disconnect(connection):
 def imap_work(connection):
 
     """Do the actual work on the IMAP server"""
-    pass
+    try:
 
+        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+
+        # get all inbox subs
+        res, inbox_list = connection.list('inbox')
+        for i in inbox_list:
+            flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
+            logging.debug('found mailbox: %s' % mailbox_name)
+
+    except Exception as err:
+        logging.error('working on mail failed: %s' % str(err))
+        
 
 def main():
     
