@@ -118,15 +118,28 @@ def imap_fetch(connection, mailbox, delimiter):
     mail_ids = mail_ids.decode('UTF-8')
     mail_ids = ','.join(mail_ids.split(' '))
     mail_ids_to_move = []
+    mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
 
     # get all header data and check date
     res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
-    pattern = re.compile('(?P<msgid>.*?) .*')
+    pattern_mailid = re.compile('(?P<msgid>.*?) .*')
+    pattern_date = re.compile('.*? (?P<day>.*?) (?P<month>.*?) (?P<year>.*?) .*')
     for h in header_data:
         if isinstance(h, tuple):
-            mail_id = pattern.match(h[0].decode('UTF-8')).groups()[0]
+            mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
             mail = email.message_from_string(h[1].decode('UTF-8'))
-            print('MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject']))
+            mail_day, mail_month, mail_year = pattern_date.match(mail['Date']).groups()
+            move_mail = int(mail_year) < mail_date_max.year
+            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
+            if move_mail:
+                debug_string = '---- MOVE TO ARCHIVE ---- ' + debug_string
+                mail_ids_to_move.append(mail_id)
+            else:
+                debug_string = '                          ' + debug_string
+            logging.debug(debug_string)
+
+    # debug: exit
+    if len(mail_ids) > 0: sys.exit(0)
 
 
 def imap_work(connection):
