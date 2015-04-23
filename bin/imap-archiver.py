@@ -110,27 +110,23 @@ def imap_fetch(connection, mailbox, delimiter):
     logging.debug('picking mailbox: %s' % mailbox)
     connection.select(mailbox)
 
-    # only pick emails the user has read already 
-    # and are from the last year but 1
-    search_year = datetime.datetime.today().year - 2
-    search_year = 2011  # DEBUG
-    res, [mail_ids] = connection.search(None, 'SEEN BEFORE 01-Jan-%s' % str(search_year))
+    res, [mail_ids] = connection.search(None, 'SEEN')
     if mail_ids is None or len(mail_ids) == 0:
-        # no emails which match this criteria
+        # no emails
         return
 
     mail_ids = mail_ids.decode('UTF-8')
     mail_ids = ','.join(mail_ids.split(' '))
-    print('mail_ids:')
-    print(mail_ids)
+    mail_ids_to_move = []
 
-    # get all header data
+    # get all header data and check date
     res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
-    print(header_data)
-    print(len(header_data))
-    for i in range(0, int(len(header_data) / 2)):
-        m = email.message_from_string(header_data[i * 2 + 1].decode('UTF-8'))
-        print('Date: %s - From: %s - To: %s - Subject: %s' % (m['Date'], m['From'], m['To'], m['Subject']))
+    pattern = re.compile('(?P<msgid>.*?) .*')
+    for h in header_data:
+        if isinstance(h, tuple):
+            mail_id = pattern.match(h[0].decode('UTF-8')).groups()[0]
+            mail = email.message_from_string(h[1].decode('UTF-8'))
+            print('MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject']))
 
 
 def imap_work(connection):
