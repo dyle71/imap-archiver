@@ -43,6 +43,42 @@ import __init__ as imap_archiver
 # code
 
 
+def imap_clean(connection, top_mailbox):
+
+    """Delete all empty mailboxes with no childs under the given mailbox"""
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+
+    mailbox_deleted = True
+    while mailbox_deleted:
+
+        mailbox_deleted = False
+
+        # get all mailboxes and subs 
+        for top_mb in top_mailbox:
+            res, mailbox_list = connection.list(top_mb)
+            for i in mailbox_list:
+
+                if i is None:
+                    continue
+
+                flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
+
+                # do not work on top level mailbox itself
+                if delimiter not in mailbox_name:
+                    continue
+
+                # do not delete intermediate nodes
+                if flags == '\\HasChildren':
+                    continue
+
+                # select mailbox and see how many mails are in there
+                res, [mail_count] = connection.select(mailbox_name)
+                if int(mail_count) == 0:
+                    logging.info('---- DELETE ---- mailbox %s has %s mails' % (mailbox_name, mail_count))
+                    connection.delete(mailbox_name)
+                    mailbox_deleted = True
+
+
 def imap_connect(host, port, user, password):
 
     """Connect to the IMAP server"""
@@ -175,24 +211,24 @@ def imap_move(connection, mailbox, delimiter):
     connection.close()
 
 
-def imap_work(connection):
+def imap_work(connection, top_mailbox):
 
     """Do the actual work on the IMAP server"""
-    #try:
+    try:
 
-    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
-    # get all mailboxes and subs 
-    for top_mailbox in ['Inbox', 'Sent']:
-        res, inbox_list = connection.list(top_mailbox)
-        for i in inbox_list:
-            if i is None:
-                continue
-            flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-            imap_move(connection, mailbox_name, delimiter)
+        # get all mailboxes and subs 
+        for top_mb in top_mailbox:
+            res, mailbox_list = connection.list(top_mb)
+            for i in mailbox_list:
+                if i is None:
+                    continue
+                flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
+                imap_move(connection, mailbox_name, delimiter)
 
-    #except Exception as err:
-    #    logging.error('working on mail failed: %s' % str(err))
+    except Exception as err:
+        logging.error('working on mail failed: %s' % str(err))
        
 
 def main():
@@ -237,8 +273,10 @@ def main():
             sys.exit(1)
 
     # work
+    top_mailbox = ['Inbox', 'Sent']
     con = imap_connect(args.host, args.port, args.user, args.password)
-    imap_work(con)
+    imap_work(con, top_mailbox)
+    imap_clean(con, top_mailbox)
     imap_disconnect(con)
 
 
