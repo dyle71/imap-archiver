@@ -85,19 +85,30 @@ def imap_connect(host, port, user, password):
     return con
 
 
+def imap_create_mailbox(connection, delimiter, mailbox):
+
+    """Create a mailbox name recurisvely"""
+    m = ''
+    for mailbox_part in mailbox.split(delimiter):
+        connection.create('"' + m + mailbox_part + '"')
+        connection.subscribe('"' + m + mailbox_part + '"')
+        m = m + mailbox_part + delimiter
+
+
 def imap_disconnect(connection):
 
     """Disconnect from the IMAP server"""
     logging.info('disconnecting from server')
     try:
+        connection.close()
         connection.logout()
     except:
         pass
 
 
-def imap_fetch(connection, mailbox, delimiter):
+def imap_move(connection, mailbox, delimiter):
 
-    """Fetch possible email candidates from the mailbox"""
+    """Fetch emails from the mailbox and move them"""
 
     # clean up mailbox name
     mb = mailbox
@@ -110,6 +121,7 @@ def imap_fetch(connection, mailbox, delimiter):
     logging.debug('picking mailbox: %s' % mailbox)
     connection.select(mailbox)
 
+    # pick all read emails
     res, [mail_ids] = connection.search(None, 'SEEN')
     if mail_ids is None or len(mail_ids) == 0:
         # no emails
@@ -117,7 +129,7 @@ def imap_fetch(connection, mailbox, delimiter):
 
     mail_ids = mail_ids.decode('UTF-8')
     mail_ids = ','.join(mail_ids.split(' '))
-    mail_ids_to_move = []
+    mail_ids_to_move = {}
     mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
 
     # get all header data and check date
@@ -126,20 +138,41 @@ def imap_fetch(connection, mailbox, delimiter):
     pattern_date = re.compile('.*? (?P<day>.*?) (?P<month>.*?) (?P<year>.*?) .*')
     for h in header_data:
         if isinstance(h, tuple):
+
             mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
-            mail = email.message_from_string(h[1].decode('UTF-8'))
+            try:
+                mail = email.message_from_string(h[1].decode('UTF-8'))
+            except Exception as e:
+                logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mb))
+                continue
+            
             mail_day, mail_month, mail_year = pattern_date.match(mail['Date']).groups()
+            if not mail_day.isdigit() or not mail_year.isdigit():
+                logging.warn('failed to parse mail date %s in mailbox %s - dropping' % (mail['Date'], mb))
+                continue
+
             move_mail = int(mail_year) < mail_date_max.year
             debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
             if move_mail:
                 debug_string = '---- MOVE TO ARCHIVE ---- ' + debug_string
-                mail_ids_to_move.append(mail_id)
+                if mail_year not in mail_ids_to_move: 
+                    mail_ids_to_move[mail_year] = []
+                mail_ids_to_move[mail_year].append(mail_id)
             else:
                 debug_string = '                          ' + debug_string
             logging.debug(debug_string)
 
-    # debug: exit
-    if len(mail_ids) > 0: sys.exit(0)
+    # move mails
+    for y in mail_ids_to_move:
+        archive_mailbox = 'Archives' + delimiter + y + delimiter + mb
+        logging.info('moving %d mails to %s' % (len(mail_ids_to_move[y]), archive_mailbox))
+        imap_create_mailbox(connection, delimiter, archive_mailbox)
+        mail_ids = ','.join(mail_ids_to_move[y])
+        connection.copy(mail_ids, '"' + archive_mailbox + '"')
+        connection.store(mail_ids, '+FLAGS', r'(\Deleted)')
+
+    connection.expunge()
+    connection.close()
 
 
 def imap_work(connection):
@@ -150,11 +183,13 @@ def imap_work(connection):
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
     # get all mailboxes and subs 
-    for top_mailbox in ['inbox', 'sent']:
+    for top_mailbox in ['Inbox', 'Sent']:
         res, inbox_list = connection.list(top_mailbox)
         for i in inbox_list:
+            if i is None:
+                continue
             flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-            imap_fetch(connection, mailbox_name, delimiter)
+            imap_move(connection, mailbox_name, delimiter)
 
     #except Exception as err:
     #    logging.error('working on mail failed: %s' % str(err))
