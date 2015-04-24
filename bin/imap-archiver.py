@@ -23,6 +23,14 @@
 # thanks to a lot of inspiration from
 # http://pymotw.com/2/imaplib/
 
+# metadata
+__author__      = 'Oliver Maurhart <dyle@dyle.org>'
+__copyright__   = 'Copyright 2015 Oliver Maurhart'
+__license__     = 'GPL v3'
+__licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
+__title__       = 'imap-archiver'
+__version__     = '0.1'
+
 
 # ------------------------------------------------------------
 # imports
@@ -35,8 +43,6 @@ import imaplib
 import logging
 import re
 import sys
-
-import __init__ as imap_archiver
 
 
 # ------------------------------------------------------------
@@ -246,10 +252,10 @@ def show_version():
 
     """Show the version"""
 
-    print('IMAP-Archiver V{0}'.format(imap_archiver.__version__))
-    print(imap_archiver.__author__)
-    print(imap_archiver.__copyright__)
-    print('Licensed under the terms of {0} - please read "{1}"'.format(imap_archiver.__license__, imap_archiver.__licenseurl__))
+    print('IMAP-Archiver V{0}'.format(__version__))
+    print(__author__)
+    print(__copyright__)
+    print('Licensed under the terms of {0} - please read "{1}"'.format(__license__, __licenseurl__))
 
 
 if __name__ == "__main__":
