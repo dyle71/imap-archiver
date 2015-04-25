@@ -40,3 +40,23 @@ Like:
 So your IMAP folders wont be bloated with old messages but are cleaned continually. Ideally 
 you may download all the mails from last year but one and clean you IMAP Account.
 
+Also, empty leaf mailboxes are removed.
+
+Example:
+
+    $ imap-archiver -t mail.company.com -u mylogin
+    no user password given. plase enter password: 
+
+To increase verbosity you may set a log-level:
+
+    $ imap-archiver -l 0 -t mail.company.com -u mylogin
+    no user password given. plase enter password: 
+
+
+Known issues:
+
+* email date parsing is awkward. Most emails are catched but some are missed.
+* some mailboxes have way too many emails to handle yet.
+* archiving of old emails and deletion of empty mailboxes may be seperate options.
+* a --dry-run option without taking any action would be nice.
+
