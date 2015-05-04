@@ -207,7 +207,6 @@ def imap_move(connection, mailbox, delimiter, dry_run):
         archive_mailbox = 'Archives' + delimiter + y + delimiter + mb
         logging.info('moving %d mails to %s' % (len(mail_ids_to_move[y]), archive_mailbox))
         if not dry_run:
-            print('__WORK__')
             imap_create_mailbox(connection, delimiter, archive_mailbox)
             mail_ids = ','.join(mail_ids_to_move[y])
             connection.copy(mail_ids, '"' + archive_mailbox + '"')
