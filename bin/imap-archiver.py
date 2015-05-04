@@ -29,7 +29,7 @@ __copyright__   = 'Copyright 2015 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imap-archiver'
-__version__     = '0.1'
+__version__     = '0.2'
 
 
 # ------------------------------------------------------------
