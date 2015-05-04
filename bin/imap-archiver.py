@@ -38,6 +38,7 @@ __version__     = '0.1'
 import argparse
 import datetime
 import email
+import email.utils
 import getpass
 import imaplib
 import logging
@@ -178,7 +179,6 @@ def imap_move(connection, mailbox, delimiter, dry_run):
     # get all header data and check date
     res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
     pattern_mailid = re.compile('(?P<msgid>.*?) .*')
-    pattern_date = re.compile('.*? (?P<day>.*?) (?P<month>.*?) (?P<year>.*?) .*')
     for h in header_data:
         if isinstance(h, tuple):
 
@@ -189,13 +189,9 @@ def imap_move(connection, mailbox, delimiter, dry_run):
                 logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mb))
                 continue
             
-            mail_day, mail_month, mail_year = pattern_date.match(mail['Date']).groups()
-            if not mail_day.isdigit() or not mail_year.isdigit():
-                logging.warn('failed to parse mail date %s in mailbox %s - dropping' % (mail['Date'], mb))
-                continue
-
-            move_mail = int(mail_year) < mail_date_max.year
-            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' 
+            mail_year = email.utils.parsedate(mail['Date'])[0]
+            move_mail = mail_year < mail_date_max.year
+            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' \
                     % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
             if move_mail:
                 debug_string = '---- MOVE TO ARCHIVE ---- ' + debug_string
