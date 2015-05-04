@@ -248,13 +248,15 @@ def main():
 
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
-    parser.add_argument('-t', '--host', dest='host', type=str, help='IMAP host name to connect')
-    parser.add_argument('-p', '--port', dest='port', type=int, default=993, help='IMAP host port to connect')
-    parser.add_argument('-u', '--user', dest='user', type=str, help='user account to log in')
-    parser.add_argument('-k', '--password', dest='password', type=str, help='user password to log in')
-    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, help='dry run - do not actually make any steps but act as if - decrease loglevel for verbosity')
-    parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, help='set logging level (see python logging module) - default is WARNING: 30 - the lower the more output')
-    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, help='version information')
+    parser.add_argument('-t', '--host', dest='host', type=str, help='IMAP host name to connect.')
+    parser.add_argument('-p', '--port', dest='port', type=int, default=993, help='IMAP host port to connect.')
+    parser.add_argument('-u', '--user', dest='user', type=str, help='User account to log in.')
+    parser.add_argument('-k', '--password', dest='password', type=str, help='User password to log in. If not specified a prompt will show up.')
+    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, help='Dry run: do not actually make any steps but act as if; decrease loglevel for verbosity.')
+    parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, help='Set logging level (see python logging module). Default is WARNING: 30 - the lower the more output.')
+    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, help='Show version information and exit.')
+    parser.add_argument('--only-move', dest='only_move', action='store_const', const=True, default=False, help='Only move mails to the archive. Do not clean empty mail directories.')
+    parser.add_argument('--only-clean', dest='only_clean', action='store_const', const=True, default=False, help='Only clean empty mail directores. Do not move old mails to the archives.')
     args = parser.parse_args()
 
     # do not proceed if only version is asked
@@ -284,11 +286,17 @@ def main():
             logging.error('no user password given. type \'-h\' for help.')
             sys.exit(1)
 
+    if args.only_move and args.only_clean:
+        logging.error('--only-move and --only-clean options both present, please chose either one.')
+        sys.exit(1)
+
     # work
     top_mailbox = ['Inbox', 'Sent']
     con = imap_connect(args.host, args.port, args.user, args.password)
-    imap_work(con, top_mailbox, args.dry_run)
-    imap_clean(con, top_mailbox, args.dry_run)
+    if not args.only_clean: 
+        imap_work(con, top_mailbox, args.dry_run)
+    if not args.only_move:
+        imap_clean(con, top_mailbox, args.dry_run)
     imap_disconnect(con)
 
 
