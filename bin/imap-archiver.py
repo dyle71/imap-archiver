@@ -38,6 +38,7 @@ __version__     = '0.1'
 import argparse
 import datetime
 import email
+import email.utils
 import getpass
 import imaplib
 import logging
@@ -49,7 +50,7 @@ import sys
 # code
 
 
-def imap_clean(connection, top_mailbox):
+def imap_clean(connection, top_mailbox, dry_run):
 
     """Delete all empty mailboxes with no childs under the given mailbox"""
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
@@ -81,7 +82,8 @@ def imap_clean(connection, top_mailbox):
                 res, [mail_count] = connection.select(mailbox_name)
                 if int(mail_count) == 0:
                     logging.info('---- DELETE ---- mailbox %s has %s mails' % (mailbox_name, mail_count))
-                    connection.delete(mailbox_name)
+                    if not dry_run:
+                        connection.delete(mailbox_name)
                     mailbox_deleted = True
 
 
@@ -148,7 +150,7 @@ def imap_disconnect(connection):
         pass
 
 
-def imap_move(connection, mailbox, delimiter):
+def imap_move(connection, mailbox, delimiter, dry_run):
 
     """Fetch emails from the mailbox and move them"""
 
@@ -177,7 +179,6 @@ def imap_move(connection, mailbox, delimiter):
     # get all header data and check date
     res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
     pattern_mailid = re.compile('(?P<msgid>.*?) .*')
-    pattern_date = re.compile('.*? (?P<day>.*?) (?P<month>.*?) (?P<year>.*?) .*')
     for h in header_data:
         if isinstance(h, tuple):
 
@@ -188,13 +189,10 @@ def imap_move(connection, mailbox, delimiter):
                 logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mb))
                 continue
             
-            mail_day, mail_month, mail_year = pattern_date.match(mail['Date']).groups()
-            if not mail_day.isdigit() or not mail_year.isdigit():
-                logging.warn('failed to parse mail date %s in mailbox %s - dropping' % (mail['Date'], mb))
-                continue
-
-            move_mail = int(mail_year) < mail_date_max.year
-            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
+            mail_year = email.utils.parsedate(mail['Date'])[0]
+            move_mail = mail_year < mail_date_max.year
+            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' \
+                    % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
             if move_mail:
                 debug_string = '---- MOVE TO ARCHIVE ---- ' + debug_string
                 if mail_year not in mail_ids_to_move: 
@@ -208,16 +206,20 @@ def imap_move(connection, mailbox, delimiter):
     for y in mail_ids_to_move:
         archive_mailbox = 'Archives' + delimiter + y + delimiter + mb
         logging.info('moving %d mails to %s' % (len(mail_ids_to_move[y]), archive_mailbox))
-        imap_create_mailbox(connection, delimiter, archive_mailbox)
-        mail_ids = ','.join(mail_ids_to_move[y])
-        connection.copy(mail_ids, '"' + archive_mailbox + '"')
-        connection.store(mail_ids, '+FLAGS', r'(\Deleted)')
+        if not dry_run:
+            print('__WORK__')
+            imap_create_mailbox(connection, delimiter, archive_mailbox)
+            mail_ids = ','.join(mail_ids_to_move[y])
+            connection.copy(mail_ids, '"' + archive_mailbox + '"')
+            connection.store(mail_ids, '+FLAGS', r'(\Deleted)')
 
-    connection.expunge()
+    if not dry_run:
+        connection.expunge()
+
     connection.close()
 
 
-def imap_work(connection, top_mailbox):
+def imap_work(connection, top_mailbox, dry_run):
 
     """Do the actual work on the IMAP server"""
     try:
@@ -231,7 +233,7 @@ def imap_work(connection, top_mailbox):
                 if i is None:
                     continue
                 flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-                imap_move(connection, mailbox_name, delimiter)
+                imap_move(connection, mailbox_name, delimiter, dry_run)
 
     except Exception as err:
         logging.error('working on mail failed: %s' % str(err))
@@ -243,12 +245,24 @@ def main():
 
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
-    parser.add_argument('-t', '--host', dest='host', type=str, help='IMAP host name to connect')
-    parser.add_argument('-p', '--port', dest='port', type=int, default=993, help='IMAP host port to connect')
-    parser.add_argument('-u', '--user', dest='user', type=str, help='user account to log in')
-    parser.add_argument('-k', '--password', dest='password', type=str, help='user password to log in')
-    parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, help='set logging level (see python logging module) - default is WARNING: 30 - the lower the more output')
-    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, help='version information')
+    parser.add_argument('-t', '--host', dest='host', type=str, 
+            help='IMAP host name to connect.')
+    parser.add_argument('-p', '--port', dest='port', type=int, default=993, 
+            help='IMAP host port to connect.')
+    parser.add_argument('-u', '--user', dest='user', type=str, 
+            help='User account to log in.')
+    parser.add_argument('-k', '--password', dest='password', type=str, 
+            help='User password to log in. If not specified a prompt will show up.')
+    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, 
+            help='Dry run: do not actually make any steps but act as if; decrease loglevel for verbosity.')
+    parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, 
+            help='Set logging level (see python logging module). Default is WARNING: 30 - the lower the more output.')
+    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, 
+            help='Show version information and exit.')
+    parser.add_argument('--only-move', dest='only_move', action='store_const', const=True, default=False, 
+            help='Only move mails to the archive. Do not clean empty mail directories.')
+    parser.add_argument('--only-clean', dest='only_clean', action='store_const', const=True, default=False, 
+            help='Only clean empty mail directores. Do not move old mails to the archives.')
     args = parser.parse_args()
 
     # do not proceed if only version is asked
@@ -278,11 +292,17 @@ def main():
             logging.error('no user password given. type \'-h\' for help.')
             sys.exit(1)
 
+    if args.only_move and args.only_clean:
+        logging.error('--only-move and --only-clean options both present, please chose either one.')
+        sys.exit(1)
+
     # work
     top_mailbox = ['Inbox', 'Sent']
     con = imap_connect(args.host, args.port, args.user, args.password)
-    imap_work(con, top_mailbox)
-    imap_clean(con, top_mailbox)
+    if not args.only_clean: 
+        imap_work(con, top_mailbox, args.dry_run)
+    if not args.only_move:
+        imap_clean(con, top_mailbox, args.dry_run)
     imap_disconnect(con)
 
 
