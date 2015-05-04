@@ -55,8 +55,7 @@ To increase verbosity you may set a log-level:
 
 Known issues:
 
-* email date parsing is awkward. Most emails are catched but some are missed.
 * some mailboxes have way too many emails to handle yet.
-* archiving of old emails and deletion of empty mailboxes may be seperate options.
-* a --dry-run option without taking any action would be nice.
+* a list of mailboxes to search should be optional
+* a top archive mailbox folder should be optional
 
