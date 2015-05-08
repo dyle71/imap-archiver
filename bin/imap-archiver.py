@@ -53,8 +53,10 @@ import sys
 def imap_clean(connection, top_mailbox, dry_run):
 
     """Delete all empty mailboxes with no childs under the given mailbox"""
-    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
+    logging.info('cleaning mailbox: %s' % top_mailbox)
+
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     mailbox_deleted = True
     while mailbox_deleted:
 
@@ -162,7 +164,7 @@ def imap_move(connection, mailbox, delimiter, dry_run):
         # ignore all mails in inbox
         return
 
-    logging.debug('picking mailbox: %s' % mailbox)
+    logging.info('searching for old mails in mailbox: %s' % mailbox)
     connection.select(mailbox)
 
     # pick all read emails
@@ -218,6 +220,62 @@ def imap_move(connection, mailbox, delimiter, dry_run):
     connection.close()
 
 
+def imap_scan(connection, top_mailbox ):
+
+    """Scan all mailboxes"""
+
+    try:
+
+        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+
+        # get all mailboxes and subs 
+        for top_mb in top_mailbox:
+            res, mailbox_list = connection.list(top_mb)
+            for i in mailbox_list:
+                if i is None:
+                    continue
+
+                flags, delimiter, mailbox = pattern.match(i.decode('UTF-8')).groups()
+                logging.info('scanning for old mails in mailbox: %s' % mailbox)
+                connection.select(mailbox)
+
+                # pick all read emails
+                res, [mail_ids] = connection.search(None, 'SEEN')
+                if mail_ids is None or len(mail_ids) == 0:
+                    # no emails
+                    return
+
+                mail_ids = mail_ids.decode('UTF-8')
+                mail_ids = ','.join(mail_ids.split(' '))
+                mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
+
+                # get all header data and check date
+                res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
+                pattern_mailid = re.compile('(?P<msgid>.*?) .*')
+                for h in header_data:
+                    if isinstance(h, tuple):
+
+                        mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
+                        try:
+                            mail = email.message_from_string(h[1].decode('UTF-8'))
+                        except Exception as e:
+                            logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mailbox))
+                            continue
+                        
+                        mail_year = email.utils.parsedate(mail['Date'])[0]
+                        move_mail = mail_year < mail_date_max.year
+                        info_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' \
+                                % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
+                        if move_mail:
+                            info_string = '---- MOVE TO ARCHIVE ---- ' + info_string
+                        else:
+                            info_string = '                          ' + info_string
+                        logging.info(info_string)
+
+    except Exception as err:
+        logging.error('scanning on failed: %s' % str(err))
+ 
+
 def imap_work(connection, top_mailbox, dry_run):
 
     """Do the actual work on the IMAP server"""
@@ -262,6 +320,8 @@ def main():
             help='Only move mails to the archive. Do not clean empty mail directories.')
     parser.add_argument('--only-clean', dest='only_clean', action='store_const', const=True, default=False, 
             help='Only clean empty mail directores. Do not move old mails to the archives.')
+    parser.add_argument('--only-scan', dest='only_scan', action='store_const', const=True, default=False, 
+            help='Only scan all mailboxes.')
     args = parser.parse_args()
 
     # do not proceed if only version is asked
@@ -271,6 +331,10 @@ def main():
 
     # fix logging
     logging.getLogger(None).setLevel(args.loglevel)
+
+    do_move = True
+    do_clean = True
+    do_scan = False
 
     # check arguments
     if not args.host:
@@ -291,17 +355,40 @@ def main():
             logging.error('no user password given. type \'-h\' for help.')
             sys.exit(1)
 
-    if args.only_move and args.only_clean:
-        logging.error('--only-move and --only-clean options both present, please chose either one.')
+    only_options = 0
+    if args.only_move: only_options = only_options + 1
+    if args.only_clean: only_options = only_options + 1
+    if args.only_scan: only_options = only_options + 1
+    if only_options > 1:
+        logging.error('several --only-* options specified, please chose exactly one.')
         sys.exit(1)
+
+    if args.only_move:
+        do_move = True
+        do_clean = False
+        do_scan = False
+
+    if args.only_clean:
+        do_move = False
+        do_clean = True
+        do_scan = False
+
+    if args.only_scan:
+        do_move = False
+        do_clean = False
+        do_scan = True
 
     # work
     top_mailbox = ['Inbox', 'Sent']
     con = imap_connect(args.host, args.port, args.user, args.password)
-    if not args.only_clean: 
+    if do_move:
         imap_work(con, top_mailbox, args.dry_run)
-    if not args.only_move:
+    if do_clean:
         imap_clean(con, top_mailbox, args.dry_run)
+    if do_scan:
+        imap_scan(con, top_mailbox)
+
+    # ... and out
     imap_disconnect(con)
 
 
