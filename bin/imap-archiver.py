@@ -29,7 +29,7 @@ __copyright__   = 'Copyright 2015 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imap-archiver'
-__version__     = '0.2'
+__version__     = '0.3'
 
 
 # ------------------------------------------------------------
@@ -41,7 +41,6 @@ import email
 import email.utils
 import getpass
 import imaplib
-import logging
 import re
 import sys
 
@@ -53,8 +52,6 @@ import sys
 def imap_clean(connection, top_mailbox, dry_run):
 
     """Delete all empty mailboxes with no childs under the given mailbox"""
-
-    logging.info('cleaning mailbox: %s' % top_mailbox)
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     mailbox_deleted = True
@@ -83,7 +80,6 @@ def imap_clean(connection, top_mailbox, dry_run):
                 # select mailbox and see how many mails are in there
                 res, [mail_count] = connection.select(mailbox_name)
                 if int(mail_count) == 0:
-                    logging.info('---- DELETE ---- mailbox %s has %s mails' % (mailbox_name, mail_count))
                     if not dry_run:
                         connection.delete(mailbox_name)
                     mailbox_deleted = True
@@ -93,40 +89,31 @@ def imap_connect(host, port, user, password):
 
     """Connect to the IMAP server"""
 
-    logging.info('connecting server %s:%d' % (host, port))
     try:
         con = imaplib.IMAP4_SSL(host, port)
     except Exception as err:
-        logging.error('connecting server %s:%d failed: %s' % (host, port, str(err)))
         sys.exit(1)
 
-    logging.info('server %s:%d connected' % (host, port))
     auth_method = []
     try:
         
         # check for authentication methods
         res, capabilities = con.capability()
-        logging.debug('server capabilities:')
         for cap in capabilities[0].split():
             c = cap.decode('UTF-8')
-            logging.debug('\t%s' % c)
             m = re.match('AUTH=(.*)', c)
             if m is not None and len(m.groups()) == 1:
                 auth_method.append(m.groups()[0])
         
         # go for suitable authentication
-        for a in auth_method:
-            logging.debug('found authentication: %s' % a)
         if 'CRAM-MD5' in auth_method:
             res, data = con.login_cram_md5(user, password)
         else:
             res, data = con.login(user, password)
 
     except Exception as err:
-        logging.error('logging into server %s:%d failed: %s' % (host, port, str(err)))
         sys.exit(1)
 
-    logging.info('user %s logged in' % user)
 
     return con
 
@@ -144,7 +131,6 @@ def imap_create_mailbox(connection, delimiter, mailbox):
 def imap_disconnect(connection):
 
     """Disconnect from the IMAP server"""
-    logging.info('disconnecting from server')
     try:
         connection.close()
         connection.logout()
@@ -164,7 +150,6 @@ def imap_move(connection, mailbox, delimiter, dry_run):
         # ignore all mails in inbox
         return
 
-    logging.info('searching for old mails in mailbox: %s' % mailbox)
     connection.select(mailbox)
 
     # pick all read emails
@@ -188,7 +173,6 @@ def imap_move(connection, mailbox, delimiter, dry_run):
             try:
                 mail = email.message_from_string(h[1].decode('UTF-8'))
             except Exception as e:
-                logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mb))
                 continue
             
             mail_year = email.utils.parsedate(mail['Date'])[0]
@@ -202,12 +186,10 @@ def imap_move(connection, mailbox, delimiter, dry_run):
                 mail_ids_to_move[mail_year].append(mail_id)
             else:
                 debug_string = '                          ' + debug_string
-            logging.debug(debug_string)
 
     # move mails
     for y in mail_ids_to_move:
         archive_mailbox = 'Archives' + delimiter + y + delimiter + mb
-        logging.info('moving %d mails to %s' % (len(mail_ids_to_move[y]), archive_mailbox))
         if not dry_run:
             imap_create_mailbox(connection, delimiter, archive_mailbox)
             mail_ids = ','.join(mail_ids_to_move[y])
@@ -236,7 +218,6 @@ def imap_scan(connection, top_mailbox ):
                     continue
 
                 flags, delimiter, mailbox = pattern.match(i.decode('UTF-8')).groups()
-                logging.info('scanning for old mails in mailbox: %s' % mailbox)
                 connection.select(mailbox)
 
                 # pick all read emails
@@ -259,7 +240,6 @@ def imap_scan(connection, top_mailbox ):
                         try:
                             mail = email.message_from_string(h[1].decode('UTF-8'))
                         except Exception as e:
-                            logging.warn('failed to decode mailid %s in mailbox %s - dropping' % (mail_id, mailbox))
                             continue
                         
                         mail_year = email.utils.parsedate(mail['Date'])[0]
@@ -270,10 +250,9 @@ def imap_scan(connection, top_mailbox ):
                             info_string = '---- MOVE TO ARCHIVE ---- ' + info_string
                         else:
                             info_string = '                          ' + info_string
-                        logging.info(info_string)
 
     except Exception as err:
-        logging.error('scanning on failed: %s' % str(err))
+        pass
  
 
 def imap_work(connection, top_mailbox, dry_run):
@@ -293,8 +272,7 @@ def imap_work(connection, top_mailbox, dry_run):
                 imap_move(connection, mailbox_name, delimiter, dry_run)
 
     except Exception as err:
-        logging.error('working on mail failed: %s' % str(err))
-       
+        pass       
 
 def main():
     
@@ -302,26 +280,31 @@ def main():
 
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
-    parser.add_argument('-t', '--host', dest='host', type=str, 
-            help='IMAP host name to connect.')
-    parser.add_argument('-p', '--port', dest='port', type=int, default=993, 
-            help='IMAP host port to connect.')
-    parser.add_argument('-u', '--user', dest='user', type=str, 
-            help='User account to log in.')
-    parser.add_argument('-k', '--password', dest='password', type=str, 
-            help='User password to log in. If not specified a prompt will show up.')
+
     parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, 
-            help='Dry run: do not actually make any steps but act as if; decrease loglevel for verbosity.')
-    parser.add_argument('-l', '--logging', dest='loglevel', type=int, default=30, 
-            help='Set logging level (see python logging module). Default is WARNING: 30 - the lower the more output.')
+            help='Dry run: do not actually make any steps but act as if.')
     parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, 
             help='Show version information and exit.')
-    parser.add_argument('--only-move', dest='only_move', action='store_const', const=True, default=False, 
-            help='Only move mails to the archive. Do not clean empty mail directories.')
-    parser.add_argument('--only-clean', dest='only_clean', action='store_const', const=True, default=False, 
-            help='Only clean empty mail directores. Do not move old mails to the archives.')
-    parser.add_argument('--only-scan', dest='only_scan', action='store_const', const=True, default=False, 
-            help='Only scan all mailboxes.')
+
+    subparser = parser.add_subparsers(help='sub-commands')
+
+    parser_scan = subparser.add_parser('scan', help='scan IMAP folders')
+    parser_scan.add_argument('connect-url', metavar='CONNECT-URL', 
+            help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
+                \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_scan.add_argument('mailbox', metavar='MAILBOX',
+            help='Top mailbox to start scanning (may be omitted).')
+
+    parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
+    parser_move.add_argument('connect-url', metavar='CONNECT-URL', 
+            help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
+                \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+
+    parser_move = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
+    parser_move.add_argument('connect-url', metavar='CONNECT-URL', 
+            help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
+                \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+
     args = parser.parse_args()
 
     # do not proceed if only version is asked
@@ -329,8 +312,7 @@ def main():
         show_version()
         sys.exit(0)
 
-    # fix logging
-    logging.getLogger(None).setLevel(args.loglevel)
+    sys.exit(1)
 
     do_move = True
     do_clean = True
@@ -338,21 +320,17 @@ def main():
 
     # check arguments
     if not args.host:
-        logging.error('no host given. type \'-h\' for help.')
         sys.exit(1)
 
     if not (0 <= args.port <= 65535):
-        logging.error('port number invalid. type \'-h\' for help.')
         sys.exit(1)
 
     if not args.user:
-        logging.error('no user given. type \'-h\' for help.')
         sys.exit(1)
 
     if not args.password:
         args.password = getpass.getpass('no user password given. plase enter password: ')
         if not args.password:
-            logging.error('no user password given. type \'-h\' for help.')
             sys.exit(1)
 
     only_options = 0
@@ -360,7 +338,6 @@ def main():
     if args.only_clean: only_options = only_options + 1
     if args.only_scan: only_options = only_options + 1
     if only_options > 1:
-        logging.error('several --only-* options specified, please chose exactly one.')
         sys.exit(1)
 
     if args.only_move:
