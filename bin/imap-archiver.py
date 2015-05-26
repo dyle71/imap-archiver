@@ -274,6 +274,26 @@ def imap_work(connection, top_mailbox, dry_run):
     except Exception as err:
         pass       
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+def clean(args):
+
+    """Clean empty leaf nodes in the IMAP folder structure"""
+    print('---> in clean <---')
+    pass
+
+
 def main():
     
     """IMAP-Archiver start"""
@@ -294,16 +314,21 @@ def main():
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_scan.add_argument('mailbox', metavar='MAILBOX',
             help='Top mailbox to start scanning (may be omitted).')
+    parser_scan.set_defaults(func = scan)
 
     parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
     parser_move.add_argument('connect-url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_move.set_defaults(func = move)
 
-    parser_move = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
-    parser_move.add_argument('connect-url', metavar='CONNECT-URL', 
+    parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
+    parser_clean.add_argument('connect-url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_clean.add_argument('mailbox', metavar='MAILBOX',
+            help='Top mailbox to start cleaning.')
+    parser_clean.set_defaults(func = clean)
 
     args = parser.parse_args()
 
@@ -312,7 +337,15 @@ def main():
         show_version()
         sys.exit(0)
 
+    # call subcommand
+    args.func(args)
+
     sys.exit(1)
+
+
+
+
+
 
     do_move = True
     do_clean = True
@@ -367,6 +400,20 @@ def main():
 
     # ... and out
     imap_disconnect(con)
+
+
+def move(args):
+
+    """Move old mails from one mailsbox to another, keeping the folder structure"""
+    print('---> in move <---')
+    pass
+
+
+def scan(args):
+
+    """Scan IMAP fodlers"""
+    print('---> in scan <---')
+    pass
 
 
 def show_version():
