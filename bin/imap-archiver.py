@@ -309,21 +309,21 @@ def main():
     subparser = parser.add_subparsers(help='sub-commands')
 
     parser_scan = subparser.add_parser('scan', help='scan IMAP folders')
-    parser_scan.add_argument('connect-url', metavar='CONNECT-URL', 
+    parser_scan.add_argument('connect_url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    parser_scan.add_argument('mailbox', metavar='MAILBOX',
-            help='Top mailbox to start scanning (may be omitted).')
+    parser_scan.add_argument('-m', '--mailbox', 
+            help='Top mailbox to start scanning.')
     parser_scan.set_defaults(func = scan)
 
     parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
-    parser_move.add_argument('connect-url', metavar='CONNECT-URL', 
+    parser_move.add_argument('connect_url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_move.set_defaults(func = move)
 
     parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
-    parser_clean.add_argument('connect-url', metavar='CONNECT-URL', 
+    parser_clean.add_argument('connect_url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_clean.add_argument('mailbox', metavar='MAILBOX',
@@ -409,11 +409,59 @@ def move(args):
     pass
 
 
+def parse_connection(connection_string):
+
+    """Parse and get connection params: USER[:PASSWORD]@HOST[:PORT]"""
+
+    c = {}
+    parts_at = connection_string.split('@')
+    host_and_port = parts_at[-1:][0]
+    if len(parts_at) > 2:
+        user_and_password = '@'.join(parts_at[:-1])
+    else:
+        user_and_password = parts_at[0] 
+
+    try:
+        if host_and_port.find(':') == -1:
+            c['host'] = host_and_port
+        else:
+            c['host'] = host_and_port.split(':')[:-1][0]
+            c['port'] = int(host_and_port.split(':')[-1:][0])
+    except Exception as e:
+        print('failed to parse mailserver part')
+        print(e)
+        sys.exit(1)
+
+    if 'host' not in c:
+        print('cannot deduce mailserver')
+        sys.exit(1)
+
+    try:
+        if user_and_password.find(':') == -1:
+            c['user'] = user_and_password
+        else:
+            c['user'] = user_and_password.split(':')[:-1][0]
+            c['password'] = user_and_password.split(':')[-1:][0]
+    except Exception as e:
+        print('failed to parse credential part')
+        print(e)
+        sys.exit(1)
+
+    if 'user' not in c:
+        print('cannot deduce user')
+        sys.exit(1)
+
+    if 'password' not in c:
+        c['password'] = getpass.getpass('no user password given. plase enter password for user %s: ' % c['user'])
+
+    return c
+
+
 def scan(args):
 
     """Scan IMAP fodlers"""
-    print('---> in scan <---')
-    pass
+    con_param = parse_connection(args.connect_url)
+    print(con_param)
 
 
 def show_version():
