@@ -85,39 +85,6 @@ def imap_clean(connection, top_mailbox, dry_run):
                     mailbox_deleted = True
 
 
-def imap_connect(host, port, user, password):
-
-    """Connect to the IMAP server"""
-
-    try:
-        con = imaplib.IMAP4_SSL(host, port)
-    except Exception as err:
-        sys.exit(1)
-
-    auth_method = []
-    try:
-        
-        # check for authentication methods
-        res, capabilities = con.capability()
-        for cap in capabilities[0].split():
-            c = cap.decode('UTF-8')
-            m = re.match('AUTH=(.*)', c)
-            if m is not None and len(m.groups()) == 1:
-                auth_method.append(m.groups()[0])
-        
-        # go for suitable authentication
-        if 'CRAM-MD5' in auth_method:
-            res, data = con.login_cram_md5(user, password)
-        else:
-            res, data = con.login(user, password)
-
-    except Exception as err:
-        sys.exit(1)
-
-
-    return con
-
-
 def imap_create_mailbox(connection, delimiter, mailbox):
 
     """Create a mailbox name recurisvely"""
@@ -126,16 +93,6 @@ def imap_create_mailbox(connection, delimiter, mailbox):
         connection.create('"' + m + mailbox_part + '"')
         connection.subscribe('"' + m + mailbox_part + '"')
         m = m + mailbox_part + delimiter
-
-
-def imap_disconnect(connection):
-
-    """Disconnect from the IMAP server"""
-    try:
-        connection.close()
-        connection.logout()
-    except:
-        pass
 
 
 def imap_move(connection, mailbox, delimiter, dry_run):
@@ -292,6 +249,47 @@ def clean(args):
     """Clean empty leaf nodes in the IMAP folder structure"""
     print('---> in clean <---')
     pass
+
+
+def connect(connection_params):
+
+    """Connect to the IMAP server"""
+
+    try:
+        if 'port' in connection_params:
+            con = imaplib.IMAP4_SSL(connection_params['host'], connection_params['port'])
+        else:
+            con = imaplib.IMAP4_SSL(connection_params['host'])
+    except Exception as e:
+        print('failed to connect %s:%d' % (connection_params['host'], connection_params['port']))
+        print(e)
+        sys.exit(1)
+
+    auth_method = []
+    try:
+        
+        # check for authentication methods
+        res, capabilities = con.capability()
+        for cap in capabilities[0].split():
+            c = cap.decode('UTF-8')
+            m = re.match('AUTH=(.*)', c)
+            if m is not None and len(m.groups()) == 1:
+                auth_method.append(m.groups()[0])
+        
+        # go for suitable authentication
+        if 'CRAM-MD5' in auth_method:
+            res, data = con.login_cram_md5(connection_params['user'], connection_params['password'])
+        else:
+            res, data = con.login(connection_params['user'], connection_params['password'])
+
+    except Exception as e:
+        print('failed to login')
+        print(e)
+        sys.exit(1)
+
+    print('%s logged in' % connection_params['user'])
+
+    return con
 
 
 def main():
@@ -452,7 +450,7 @@ def parse_connection(connection_string):
         sys.exit(1)
 
     if 'password' not in c:
-        c['password'] = getpass.getpass('no user password given. plase enter password for user %s: ' % c['user'])
+        c['password'] = getpass.getpass('no user password given. plase enter password for user \'%s\': ' % c['user'])
 
     return c
 
@@ -460,8 +458,13 @@ def parse_connection(connection_string):
 def scan(args):
 
     """Scan IMAP fodlers"""
-    con_param = parse_connection(args.connect_url)
-    print(con_param)
+    con = connect(parse_connection(args.connect_url))
+
+    try: 
+        con.close()
+        con.logout()
+    except:
+        pass
 
 
 def show_version():
