@@ -253,13 +253,18 @@ def clean(args):
 
 def connect(connection_params):
 
-    """Connect to the IMAP server"""
+    """Connect to the IMAP server
+    
+    @param  connection_params   a dict holding connection details
+    @return connection object (imaplib.IMAP_SSL)
+    """
 
     try:
         if 'port' in connection_params:
             con = imaplib.IMAP4_SSL(connection_params['host'], connection_params['port'])
         else:
             con = imaplib.IMAP4_SSL(connection_params['host'])
+
     except Exception as e:
         print('failed to connect %s:%d' % (connection_params['host'], connection_params['port']))
         print(e)
@@ -267,8 +272,8 @@ def connect(connection_params):
 
     auth_method = []
     try:
-        
-        # check for authentication methods
+
+        # collect authentication methods and login
         res, capabilities = con.capability()
         for cap in capabilities[0].split():
             c = cap.decode('UTF-8')
@@ -276,7 +281,6 @@ def connect(connection_params):
             if m is not None and len(m.groups()) == 1:
                 auth_method.append(m.groups()[0])
         
-        # go for suitable authentication
         if 'CRAM-MD5' in auth_method:
             res, data = con.login_cram_md5(connection_params['user'], connection_params['password'])
         else:
@@ -330,17 +334,16 @@ def main():
 
     args = parser.parse_args()
 
-    # do not proceed if only version is asked
+    if 'func' not in dir(args):
+        parser.print_help()
+        sys.exit(1)
+        
     if args.version:
         show_version()
         sys.exit(0)
 
-    # call subcommand
     args.func(args)
-
     sys.exit(1)
-
-
 
 
 
@@ -409,10 +412,18 @@ def move(args):
 
 def parse_connection(connection_string):
 
-    """Parse and get connection params: USER[:PASSWORD]@HOST[:PORT]"""
+    """Parse and get connection params 
+    
+    @param  connection_string   string of USER[:PASSWORD]@HOST[:PORT]
+    @return connection detail dict
+    """
 
-    c = {}
+    con = {}
     parts_at = connection_string.split('@')
+    if len(parts_at) == 1:
+        print('malformed connection string - type --help for help')
+        sys.exit(1)
+
     host_and_port = parts_at[-1:][0]
     if len(parts_at) > 2:
         user_and_password = '@'.join(parts_at[:-1])
@@ -421,43 +432,44 @@ def parse_connection(connection_string):
 
     try:
         if host_and_port.find(':') == -1:
-            c['host'] = host_and_port
+            con['host'] = host_and_port
         else:
-            c['host'] = host_and_port.split(':')[:-1][0]
-            c['port'] = int(host_and_port.split(':')[-1:][0])
+            con['host'] = host_and_port.split(':')[:-1][0]
+            con['port'] = int(host_and_port.split(':')[-1:][0])
+
     except Exception as e:
         print('failed to parse mailserver part')
         print(e)
         sys.exit(1)
 
-    if 'host' not in c:
+    if 'host' not in con:
         print('cannot deduce mailserver')
         sys.exit(1)
 
     try:
         if user_and_password.find(':') == -1:
-            c['user'] = user_and_password
+            con['user'] = user_and_password
         else:
-            c['user'] = user_and_password.split(':')[:-1][0]
-            c['password'] = user_and_password.split(':')[-1:][0]
+            con['user'] = user_and_password.split(':')[:-1][0]
+            con['password'] = user_and_password.split(':')[-1:][0]
     except Exception as e:
         print('failed to parse credential part')
         print(e)
         sys.exit(1)
 
-    if 'user' not in c:
+    if 'user' not in con:
         print('cannot deduce user')
         sys.exit(1)
 
-    if 'password' not in c:
-        c['password'] = getpass.getpass('no user password given. plase enter password for user \'%s\': ' % c['user'])
+    if 'password' not in con:
+        con['password'] = getpass.getpass('no user password given. plase enter password for user \'%s\': ' % con['user'])
 
-    return c
+    return con
 
 
 def scan(args):
 
-    """Scan IMAP fodlers"""
+    """Scan IMAP folders"""
     con = connect(parse_connection(args.connect_url))
 
     try: 
