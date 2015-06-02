@@ -442,8 +442,8 @@ def parse_connection(connection_string):
         print(e)
         sys.exit(1)
 
-    if 'host' not in con:
-        print('cannot deduce mailserver')
+    if len(con['host']) == 0:
+        print('cannot deduce host')
         sys.exit(1)
 
     try:
@@ -457,7 +457,7 @@ def parse_connection(connection_string):
         print(e)
         sys.exit(1)
 
-    if 'user' not in con:
+    if len(con['user']) == 0:
         print('cannot deduce user')
         sys.exit(1)
 
