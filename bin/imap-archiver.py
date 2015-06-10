@@ -304,25 +304,34 @@ def inspect_mailbox(connection, mailbox):
     @param  mailbox     mailbox name
     @return mails_all   all mails
     @return mails_seen  seen mails
-    @return mails_old   old mails (seen and is_old --> true)
+    @return mails_old   old mails
     """
 
     connection.select(mailbox)
     res, [mails_all] = connection.search(None, 'ALL')
     res, [mails_seen] = connection.search(None, 'SEEN')
+    mails_all = mails_all.decode('UTF-8').split(' ')
+    if len(mails_all) > 0 and mails_all[0] == '': mails_all.pop()
+    mails_seen = mails_seen.decode('UTF-8').split(' ')
+    if len(mails_seen) > 0 and mails_seen[0] == '': mails_seen.pop()
     mails_old = []
 
+    if len(mails_seen) > 0:
+
+        mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
+        res, header_data = connection.fetch(','.join(mails_seen), '(BODY.PEEK[HEADER])')
+       
+        pattern_mailid = re.compile('(?P<msgid>.*?) .*')
+        for h in header_data:
+            if isinstance(h, tuple):
+
+                mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
+                mail = email.message_from_string(h[1].decode('UTF-8'))
+                mail_year = email.utils.parsedate(mail['Date'])[0]
+                if mail_year < mail_date_max.year:
+                    mails_old.append(mail_id)
+
     return mails_all, mails_seen, mails_old
-
-
-def is_old(mail):
-
-    """Checks if the given mail is treated to be too old
-
-    @param  mail    mail-id to check in current mailbox
-    @return True    if mail is really too old
-    """
-    return False
 
 
 def main():
@@ -446,16 +455,12 @@ def scan(args):
 
     """Scan IMAP folders"""
     con = connect(parse_connection(args.connect_url))
-
-    print(args)
-    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-
-    # get all mailboxes and subs 
     if args.mailbox is None:
         res, mailbox_list = con.list()
     else:
         res, mailbox_list = con.list(args.mailbox)
 
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
         if mailbox_list_item is None:
             continue
