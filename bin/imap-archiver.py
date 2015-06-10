@@ -296,6 +296,35 @@ def connect(connection_params):
     return con
 
 
+def inspect_mailbox(connection, mailbox):
+
+    """Inspect a mailbox folder and return mail-lists
+
+    @param  connection  IMAP connection
+    @param  mailbox     mailbox name
+    @return mails_all   all mails
+    @return mails_seen  seen mails
+    @return mails_old   old mails (seen and is_old --> true)
+    """
+
+    connection.select(mailbox)
+    res, [mails_all] = connection.search(None, 'ALL')
+    res, [mails_seen] = connection.search(None, 'SEEN')
+    mails_old = []
+
+    return mails_all, mails_seen, mails_old
+
+
+def is_old(mail):
+
+    """Checks if the given mail is treated to be too old
+
+    @param  mail    mail-id to check in current mailbox
+    @return True    if mail is really too old
+    """
+    return False
+
+
 def main():
     
     """IMAP-Archiver start"""
@@ -316,6 +345,8 @@ def main():
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_scan.add_argument('-m', '--mailbox', 
             help='Top mailbox to start scanning.')
+    parser_scan.add_argument('-l', '--list-boxes-only', dest='list_boxes_only', action='store_const', 
+            const=True, default=False, help='Only list mailbox, do not examine each mail therein.')
     parser_scan.set_defaults(func = scan)
 
     parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
@@ -343,64 +374,6 @@ def main():
         sys.exit(0)
 
     args.func(args)
-    sys.exit(1)
-
-
-
-
-    do_move = True
-    do_clean = True
-    do_scan = False
-
-    # check arguments
-    if not args.host:
-        sys.exit(1)
-
-    if not (0 <= args.port <= 65535):
-        sys.exit(1)
-
-    if not args.user:
-        sys.exit(1)
-
-    if not args.password:
-        args.password = getpass.getpass('no user password given. plase enter password: ')
-        if not args.password:
-            sys.exit(1)
-
-    only_options = 0
-    if args.only_move: only_options = only_options + 1
-    if args.only_clean: only_options = only_options + 1
-    if args.only_scan: only_options = only_options + 1
-    if only_options > 1:
-        sys.exit(1)
-
-    if args.only_move:
-        do_move = True
-        do_clean = False
-        do_scan = False
-
-    if args.only_clean:
-        do_move = False
-        do_clean = True
-        do_scan = False
-
-    if args.only_scan:
-        do_move = False
-        do_clean = False
-        do_scan = True
-
-    # work
-    top_mailbox = ['Inbox', 'Sent']
-    con = imap_connect(args.host, args.port, args.user, args.password)
-    if do_move:
-        imap_work(con, top_mailbox, args.dry_run)
-    if do_clean:
-        imap_clean(con, top_mailbox, args.dry_run)
-    if do_scan:
-        imap_scan(con, top_mailbox)
-
-    # ... and out
-    imap_disconnect(con)
 
 
 def move(args):
@@ -418,6 +391,7 @@ def parse_connection(connection_string):
     @return connection detail dict
     """
 
+    # worst case scenario: "alice@somehost.domain:password@someotherhost.otherdomain:7892"
     con = {}
     parts_at = connection_string.split('@')
     if len(parts_at) == 1:
@@ -462,7 +436,8 @@ def parse_connection(connection_string):
         sys.exit(1)
 
     if 'password' not in con:
-        con['password'] = getpass.getpass('no user password given. plase enter password for user \'%s\': ' % con['user'])
+        con['password'] = getpass.getpass(
+                'no user password given. plase enter password for user \'%s\': ' % con['user'])
 
     return con
 
@@ -472,6 +447,27 @@ def scan(args):
     """Scan IMAP folders"""
     con = connect(parse_connection(args.connect_url))
 
+    print(args)
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+
+    # get all mailboxes and subs 
+    if args.mailbox is None:
+        res, mailbox_list = con.list()
+    else:
+        res, mailbox_list = con.list(args.mailbox)
+
+    for mailbox_list_item in mailbox_list:
+        if mailbox_list_item is None:
+            continue
+
+        flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
+        if not args.list_boxes_only:
+            mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
+            print("mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % 
+                    (mailbox, len(mails_all), len(mails_seen), len(mails_old)))
+        else:
+            print("mailbox: %s" % mailbox)
+        
     try: 
         con.close()
         con.logout()
