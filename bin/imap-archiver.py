@@ -395,11 +395,22 @@ def main():
     args.func(args)
 
 
+def max_year():
+
+    """Returns the maximum year for which mails < max_year() are considered old.
+
+    @return most recent year for which mails are old
+    """
+    return datetime.date(datetime.date.today().year - 1, 1, 1).year
+
+
 def move(args):
 
     """Move old mails from one mailsbox to another, keeping the folder structure"""
     con = connect(parse_connection(args.connect_url))
     res, mailbox_list = con.list(args.mailbox_from)
+
+    mail_max_year = max_year()
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
@@ -485,7 +496,7 @@ def scan(args):
     else:
         res, mailbox_list = con.list(args.mailbox)
 
-    mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1).year
+    mail_max_year = max_year()
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
@@ -498,7 +509,7 @@ def scan(args):
             mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
             old_mails = 0
             for y in mails_old:
-                if y < mail_date_max:
+                if y < mail_max_year:
                     old_mails = old_mails + len(mails_old[y])
 
             print("mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % (mailbox, len(mails_all), len(mails_seen), old_mails))
