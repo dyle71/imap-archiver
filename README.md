@@ -40,22 +40,86 @@ Like:
 So your IMAP folders wont be bloated with old messages but are cleaned continually. Ideally 
 you may download all the mails from last year but one and clean you IMAP Account.
 
-Also, empty leaf mailboxes are removed.
+    usage: imap-archiver.py [-h] [-d] [-v] {scan,move,clean} ...
 
-Example:
+    IMAP-Archiver
 
-    $ imap-archiver -t mail.company.com -u mylogin
-    no user password given. plase enter password: 
+    positional arguments:
+      {scan,move,clean}  sub-commands
+        scan             scan IMAP folders
+        move             move old emails to target mailbox
+        clean            delete empty mailboxes with no mail or child mailbox.
 
-To increase verbosity you may set a log-level:
+    optional arguments:
+      -h, --help         show this help message and exit
+      -d, --dry-run      Dry run: do not actually make any steps but act as if.
+      -v, --version      Show version information and exit.
 
-    $ imap-archiver -l 0 -t mail.company.com -u mylogin
-    no user password given. plase enter password: 
 
+Detailed command options:
 
-Known issues:
+Scan:
 
-* some mailboxes have way too many emails to handle yet.
-* a list of mailboxes to search should be optional
-* a top archive mailbox folder should be optional
+    imap-archiver.py scan [-h] [-m MAILBOX] [-l] CONNECT-URL
+
+    positional arguments:
+      CONNECT-URL           Connection details. Syntax is USER[:PASS]@HOST[:PORT]
+                            like 'john@example.com' or 'bob:mysecret@mail-
+                            server.com:143'. If password PASS is omitted you are
+                            asked for it.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -m MAILBOX, --mailbox MAILBOX
+                            Top mailbox to start scanning.
+      -l, --list-boxes-only
+                            Only list mailbox, do not examine each mail therein.
+
+Move:
+
+    imap-archiver.py move [-h] CONNECT-URL MAILBOX_FROM MAILBOX_TO
+
+    positional arguments:
+      CONNECT-URL   Connection details. Syntax is USER[:PASS]@HOST[:PORT] like
+                    'john@example.com' or 'bob:mysecret@mail-server.com:143'. If
+                    password PASS is omitted you are asked for it.
+      MAILBOX_FROM  mailbox to start moving from.
+      MAILBOX_TO    mailbox to move to.
+
+    optional arguments:
+      -h, --help    show this help message and exit
+
+Clean/Purge:
+
+    imap-archiver.py clean [-h] CONNECT-URL MAILBOX
+
+    positional arguments:
+      CONNECT-URL  Connection details. Syntax is USER[:PASS]@HOST[:PORT] like
+                   'john@example.com' or 'bob:mysecret@mail-server.com:143'. If
+                   password PASS is omitted you are asked for it.
+      MAILBOX      Top mailbox to start cleaning.
+
+    optional arguments:
+      -h, --help   show this help message and exit
+
+Examples:
+
+Scan all folders:
+
+    $ imap-archiver.py scan --mailbox INBOX john@example.com
+    no user password given. plase enter password for user 'john':
+    john logged in
+    mailbox: "INBOX" - ALL: 111, SEEN: 111, OLD: 24
+    mailbox: "INBOX.Persons" - ALL: 0, SEEN: 0, OLD: 0
+    mailbox: "INBOX.Persons.My Friend" - ALL: 4, SEEN: 4, OLD: 2
+    ...
+
+Move old emails:
+
+    $ imap-archiver.py move john@example.com INBOX Archives
+
+Clean or prune empty subfolders:
+
+    $ imap-archiver.py clean john@example.com INBOX 
+  
 
