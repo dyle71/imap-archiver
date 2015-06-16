@@ -303,11 +303,11 @@ def inspect_mailbox(connection, mailbox):
 
     """Inspect a mailbox folder and return mail-lists
 
-    @param  connection  IMAP connection
-    @param  mailbox     mailbox name
-    @return mails_all   all mails
-    @return mails_seen  seen mails
-    @return mails_old   old mails
+    @param  connection      IMAP connection
+    @param  mailbox         mailbox name
+    @return mails_all       all mails
+    @return mails_seen      seen mails
+    @return mails_per_year  seen mails per year
     """
 
     connection.select(mailbox)
@@ -317,11 +317,10 @@ def inspect_mailbox(connection, mailbox):
     if len(mails_all) > 0 and mails_all[0] == '': mails_all.pop()
     mails_seen = mails_seen.decode('UTF-8').split(' ')
     if len(mails_seen) > 0 and mails_seen[0] == '': mails_seen.pop()
-    mails_old = []
+    mails_per_year = {}
 
     if len(mails_seen) > 0:
 
-        mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
         res, header_data = connection.fetch(','.join(mails_seen), '(BODY.PEEK[HEADER])')
        
         pattern_mailid = re.compile('(?P<msgid>.*?) .*')
@@ -332,11 +331,13 @@ def inspect_mailbox(connection, mailbox):
                 mail_header = h[1].split(b'\r\n')
                 for mh in mail_header:
                     if mh.startswith(b'Date:'):
-                        mail_year = email.utils.parsedate(str(mh)[8:])[0]
-                        if mail_year < mail_date_max.year:
-                            mails_old.append(mail_id)
 
-    return mails_all, mails_seen, mails_old
+                        mail_year = email.utils.parsedate(str(mh)[8:])[0]
+                        if mail_year not in mails_per_year:
+                            mails_per_year[mail_year] = []
+                        mails_per_year[mail_year].append(mail_id)
+
+    return mails_all, mails_seen, mails_per_year
 
 
 def main():
@@ -367,6 +368,10 @@ def main():
     parser_move.add_argument('connect_url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_move.add_argument('mailbox_from', metavar='MAILBOX_FROM', 
+            help='mailbox to start moving from.')
+    parser_move.add_argument('mailbox_to', metavar='MAILBOX_TO', 
+            help='mailbox to move to.')
     parser_move.set_defaults(func = move)
 
     parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
@@ -393,7 +398,22 @@ def main():
 def move(args):
 
     """Move old mails from one mailsbox to another, keeping the folder structure"""
-    print('---> in move <---')
+    con = connect(parse_connection(args.connect_url))
+    res, mailbox_list = con.list(args.mailbox_from)
+
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+    for mailbox_list_item in mailbox_list:
+        if mailbox_list_item is None:
+            continue
+
+        flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
+        mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
+        
+    try: 
+        con.close()
+        con.logout()
+    except:
+        pass
     pass
 
 
@@ -465,16 +485,24 @@ def scan(args):
     else:
         res, mailbox_list = con.list(args.mailbox)
 
+    mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1).year
+
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
         if mailbox_list_item is None:
             continue
 
         flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
+
         if not args.list_boxes_only:
             mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
-            print("mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % 
-                    (mailbox, len(mails_all), len(mails_seen), len(mails_old)))
+            old_mails = 0
+            for y in mails_old:
+                if y < mail_date_max:
+                    old_mails = old_mails + len(mails_old[y])
+
+            print("mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % (mailbox, len(mails_all), len(mails_seen), old_mails))
+
         else:
             print("mailbox: %s" % mailbox)
         
