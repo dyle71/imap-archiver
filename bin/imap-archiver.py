@@ -49,206 +49,40 @@ import sys
 # code
 
 
-def imap_clean(connection, top_mailbox, dry_run):
-
-    """Delete all empty mailboxes with no childs under the given mailbox"""
-
-    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-    mailbox_deleted = True
-    while mailbox_deleted:
-
-        mailbox_deleted = False
-
-        # get all mailboxes and subs 
-        for top_mb in top_mailbox:
-            res, mailbox_list = connection.list(top_mb)
-            for i in mailbox_list:
-
-                if i is None:
-                    continue
-
-                flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-
-                # do not work on top level mailbox itself
-                if delimiter not in mailbox_name:
-                    continue
-
-                # do not delete intermediate nodes
-                if flags == '\\HasChildren':
-                    continue
-
-                # select mailbox and see how many mails are in there
-                res, [mail_count] = connection.select(mailbox_name)
-                if int(mail_count) == 0:
-                    if not dry_run:
-                        connection.delete(mailbox_name)
-                    mailbox_deleted = True
-
-
-def imap_create_mailbox(connection, delimiter, mailbox):
-
-    """Create a mailbox name recurisvely"""
-    m = ''
-    for mailbox_part in mailbox.split(delimiter):
-        connection.create('"' + m + mailbox_part + '"')
-        connection.subscribe('"' + m + mailbox_part + '"')
-        m = m + mailbox_part + delimiter
-
-
-def imap_move(connection, mailbox, delimiter, dry_run):
-
-    """Fetch emails from the mailbox and move them"""
-
-    # clean up mailbox name
-    mb = mailbox
-    if mb.endswith('"'): mb = mb[:-1]
-    if mb.startswith('"'): mb = mb[1:]
-    if mb.lower() == 'inbox':
-        # ignore all mails in inbox
-        return
-
-    connection.select(mailbox)
-
-    # pick all read emails
-    res, [mail_ids] = connection.search(None, 'SEEN')
-    if mail_ids is None or len(mail_ids) == 0:
-        # no emails
-        return
-
-    mail_ids = mail_ids.decode('UTF-8')
-    mail_ids = ','.join(mail_ids.split(' '))
-    mail_ids_to_move = {}
-    mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
-
-    # get all header data and check date
-    res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
-    pattern_mailid = re.compile('(?P<msgid>.*?) .*')
-    for h in header_data:
-        if isinstance(h, tuple):
-
-            mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
-            try:
-                mail = email.message_from_string(h[1].decode('UTF-8'))
-            except Exception as e:
-                continue
-            
-            mail_year = email.utils.parsedate(mail['Date'])[0]
-            move_mail = mail_year < mail_date_max.year
-            debug_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' \
-                    % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
-            if move_mail:
-                debug_string = '---- MOVE TO ARCHIVE ---- ' + debug_string
-                if mail_year not in mail_ids_to_move: 
-                    mail_ids_to_move[mail_year] = []
-                mail_ids_to_move[mail_year].append(mail_id)
-            else:
-                debug_string = '                          ' + debug_string
-
-    # move mails
-    for y in mail_ids_to_move:
-        archive_mailbox = 'Archives' + delimiter + y + delimiter + mb
-        if not dry_run:
-            imap_create_mailbox(connection, delimiter, archive_mailbox)
-            mail_ids = ','.join(mail_ids_to_move[y])
-            connection.copy(mail_ids, '"' + archive_mailbox + '"')
-            connection.store(mail_ids, '+FLAGS', r'(\Deleted)')
-
-    if not dry_run:
-        connection.expunge()
-
-    connection.close()
-
-
-def imap_scan(connection, top_mailbox ):
-
-    """Scan all mailboxes"""
-
-    try:
-
-        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-
-        # get all mailboxes and subs 
-        for top_mb in top_mailbox:
-            res, mailbox_list = connection.list(top_mb)
-            for i in mailbox_list:
-                if i is None:
-                    continue
-
-                flags, delimiter, mailbox = pattern.match(i.decode('UTF-8')).groups()
-                connection.select(mailbox)
-
-                # pick all read emails
-                res, [mail_ids] = connection.search(None, 'SEEN')
-                if mail_ids is None or len(mail_ids) == 0:
-                    # no emails
-                    return
-
-                mail_ids = mail_ids.decode('UTF-8')
-                mail_ids = ','.join(mail_ids.split(' '))
-                mail_date_max = datetime.date(datetime.date.today().year - 1, 1, 1)
-
-                # get all header data and check date
-                res, header_data = connection.fetch(mail_ids, '(BODY.PEEK[HEADER])')
-                pattern_mailid = re.compile('(?P<msgid>.*?) .*')
-                for h in header_data:
-                    if isinstance(h, tuple):
-
-                        mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
-                        try:
-                            mail = email.message_from_string(h[1].decode('UTF-8'))
-                        except Exception as e:
-                            continue
-                        
-                        mail_year = email.utils.parsedate(mail['Date'])[0]
-                        move_mail = mail_year < mail_date_max.year
-                        info_string = 'MailID: %s - Date: %s - From: %s - To: %s - Subject: %s' \
-                                % (mail_id, mail['Date'], mail['From'], mail['To'], mail['Subject'])
-                        if move_mail:
-                            info_string = '---- MOVE TO ARCHIVE ---- ' + info_string
-                        else:
-                            info_string = '                          ' + info_string
-
-    except Exception as err:
-        pass
- 
-
-def imap_work(connection, top_mailbox, dry_run):
-
-    """Do the actual work on the IMAP server"""
-    try:
-
-        pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-
-        # get all mailboxes and subs 
-        for top_mb in top_mailbox:
-            res, mailbox_list = connection.list(top_mb)
-            for i in mailbox_list:
-                if i is None:
-                    continue
-                flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
-                imap_move(connection, mailbox_name, delimiter, dry_run)
-
-    except Exception as err:
-        pass       
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def clean(args):
 
     """Clean empty leaf nodes in the IMAP folder structure"""
-    print('---> in clean <---')
-    pass
+
+    con = connect(parse_connection(args.connect_url))
+
+    pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
+
+    res, mailbox_list = con.list(args.mailbox)
+    for i in mailbox_list:
+
+        if i is None:
+            continue
+
+        flags, delimiter, mailbox_name = pattern.match(i.decode('UTF-8')).groups()
+
+        # do not work on top level mailbox itself
+        if delimiter not in mailbox_name:
+            continue
+
+        if flags == '\\HasChildren':
+            continue
+
+        res, [mail_count] = con.select(mailbox_name)
+        if int(mail_count) == 0:
+            print("mailbox: %s - removing (no mails, no childrem)" % mailbox_name)
+            if not args.dry_run:
+                con.delete(mailbox_name)
+
+    try: 
+        con.close()
+        con.logout()
+    except:
+        pass
 
 
 def connect(connection_params):
@@ -453,7 +287,6 @@ def move(args):
         con.logout()
     except:
         pass
-    pass
 
 
 def parse_connection(connection_string):
