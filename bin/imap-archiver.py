@@ -299,6 +299,21 @@ def connect(connection_params):
     return con
 
 
+def create_mailbox(connection, delimiter, mailbox):
+
+    """Create a mailbox name recurisvely
+    
+    @param  connection      the IMAP connection
+    @param  delimiter       the current mailbox name delimiter
+    @param  mailbox         the list of mailbox names to create
+    """
+    m = ''
+    for mailbox_part in mailbox.split(delimiter):
+        connection.create('"' + m + mailbox_part + '"')
+        connection.subscribe('"' + m + mailbox_part + '"')
+        m = m + mailbox_part + delimiter
+
+
 def inspect_mailbox(connection, mailbox):
 
     """Inspect a mailbox folder and return mail-lists
@@ -420,6 +435,19 @@ def move(args):
         flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
         mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
         
+        # move mails
+        mb = strip_mailbox(mailbox)
+        first_move = True
+        for y in mails_old:
+            if y < mail_max_year:
+                archive_mailbox = '"' + args.mailbox_to + delimiter + str(y) + delimiter + mb + '"'
+                print("mailbox: %s - moving %d mails to %s" % (mailbox, len(mails_old[y]), archive_mailbox))
+                if not args.dry_run:
+                    create_mailbox(con, delimiter, archive_mailbox)
+                    mail_ids = ','.join(mails_old[y])
+                    con.copy(mail_ids, archive_mailbox)
+                    con.store(mail_ids, '+FLAGS', r'(\Deleted)')
+
     try: 
         con.close()
         con.logout()
@@ -532,6 +560,17 @@ def show_version():
     print(__author__)
     print(__copyright__)
     print('Licensed under the terms of {0} - please read "{1}"'.format(__license__, __licenseurl__))
+
+
+def strip_mailbox(mailbox):
+
+    """strip leading and trailing quotes from a mailbox name
+
+    @return the mailbox name without quotes
+    """
+    if mailbox.endswith('"'): mailbox = mailbox[:-1]
+    if mailbox.startswith('"'): mailbox = mailbox[1:]
+    return mailbox
 
 
 if __name__ == "__main__":
