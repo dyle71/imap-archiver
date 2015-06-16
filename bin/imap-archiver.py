@@ -266,7 +266,10 @@ def connect(connection_params):
             con = imaplib.IMAP4_SSL(connection_params['host'])
 
     except Exception as e:
-        print('failed to connect %s:%d' % (connection_params['host'], connection_params['port']))
+        if 'port' in connection_params:
+            print('failed to connect %s:%d' % (connection_params['host'], connection_params['port']))
+        else:
+            print('failed to connect %s' % connection_params['host'])
         print(e)
         sys.exit(1)
 
@@ -326,10 +329,12 @@ def inspect_mailbox(connection, mailbox):
             if isinstance(h, tuple):
 
                 mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
-                mail = email.message_from_string(h[1].decode('UTF-8'))
-                mail_year = email.utils.parsedate(mail['Date'])[0]
-                if mail_year < mail_date_max.year:
-                    mails_old.append(mail_id)
+                mail_header = h[1].split(b'\r\n')
+                for mh in mail_header:
+                    if mh.startswith(b'Date:'):
+                        mail_year = email.utils.parsedate(str(mh)[8:])[0]
+                        if mail_year < mail_date_max.year:
+                            mails_old.append(mail_id)
 
     return mails_all, mails_seen, mails_old
 
