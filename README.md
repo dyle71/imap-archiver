@@ -16,21 +16,18 @@ Example:
             Bill /
                 - Where is my shirt?    23.06.2013
 
-
-This should not touch the Inbox folder but all folders underneath and move the messages older
-than a year to corresponding archive subfolders.
-
-Like:
+to
 
     Inbox /
         - No, really            01.03.2015
         - Hello my friend       04.10.2014
-        - A Message             14.04.2013
         Friends /
             Joe /
                 - Nice Concert          12.04.2014 
     Archive /
         2013 /
+            Inbox /
+                - A Message             14.04.2013
             Friends /
                 Joe /
                     - Let us have a beer    01.11.2013
@@ -58,7 +55,7 @@ you may download all the mails from last year but one and clean you IMAP Account
 
 Detailed command options:
 
-Scan:
+Scan: scans the IMAP account for old mails.
 
     imap-archiver.py scan [-h] [-m MAILBOX] [-l] CONNECT-URL
 
@@ -75,9 +72,9 @@ Scan:
       -l, --list-boxes-only
                             Only list mailbox, do not examine each mail therein.
 
-Move:
+Move: move old mails to dediacted sub folder
 
-    imap-archiver.py move [-h] CONNECT-URL MAILBOX_FROM MAILBOX_TO
+    imap-archiver.py move [-h] CONNECT-URL MAILBOX-FROM MAILBOX-TO
 
     positional arguments:
       CONNECT-URL   Connection details. Syntax is USER[:PASS]@HOST[:PORT] like
@@ -89,7 +86,7 @@ Move:
     optional arguments:
       -h, --help    show this help message and exit
 
-Clean/Purge:
+Clean/Purge: remove empty (no mails, no child) mailboxes at the bottom of the mailbox tree
 
     imap-archiver.py clean [-h] CONNECT-URL MAILBOX
 
@@ -122,4 +119,9 @@ Clean or prune empty subfolders:
 
     $ imap-archiver.py clean john@example.com INBOX 
   
+
+
+
+(C)opyright 2015, Oliver Maurhart
+dyle@dyle.org
 

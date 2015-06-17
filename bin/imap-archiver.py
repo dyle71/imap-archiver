@@ -29,7 +29,7 @@ __copyright__   = 'Copyright 2015 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imap-archiver'
-__version__     = '0.3'
+__version__     = '0.4'
 
 
 # ------------------------------------------------------------
@@ -217,9 +217,9 @@ def main():
     parser_move.add_argument('connect_url', metavar='CONNECT-URL', 
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    parser_move.add_argument('mailbox_from', metavar='MAILBOX_FROM', 
+    parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM', 
             help='mailbox to start moving from.')
-    parser_move.add_argument('mailbox_to', metavar='MAILBOX_TO', 
+    parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO', 
             help='mailbox to move to.')
     parser_move.set_defaults(func = move)
 
