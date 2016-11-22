@@ -29,7 +29,7 @@ __copyright__   = 'Copyright 2015 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imap-archiver'
-__version__     = '0.4'
+__version__     = '0.5'
 
 
 # ------------------------------------------------------------
@@ -53,7 +53,7 @@ def clean(args):
 
     """Clean empty leaf nodes in the IMAP folder structure"""
 
-    con = connect(parse_connection(args.connect_url))
+    con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
@@ -74,7 +74,7 @@ def clean(args):
 
         res, [mail_count] = con.select(mailbox_name)
         if int(mail_count) == 0:
-            print("mailbox: %s - removing (no mails, no childrem)" % mailbox_name)
+            print("Mailbox: %s - removing (no mails, no childrem)" % mailbox_name)
             if not args.dry_run:
                 con.delete(mailbox_name)
 
@@ -85,19 +85,24 @@ def clean(args):
         pass
 
 
-def connect(connection_params):
+def connect(connection_params, verbose):
 
     """Connect to the IMAP server
     
     @param  connection_params   a dict holding connection details
-    @return connection object (imaplib.IMAP_SSL)
+    @return connection object (imaplib.IMAP)
     """
 
+    if verbose is True:
+        print('Connecting...')
+        
     try:
         if 'port' in connection_params:
-            con = imaplib.IMAP4_SSL(connection_params['host'], connection_params['port'])
+            con = imaplib.IMAP4(connection_params['host'], connection_params['port'])
         else:
-            con = imaplib.IMAP4_SSL(connection_params['host'])
+            con = imaplib.IMAP4(connection_params['host'])
+            
+        con.starttls()
 
     except Exception as e:
         if 'port' in connection_params:
@@ -107,6 +112,9 @@ def connect(connection_params):
         print(e)
         sys.exit(1)
 
+    if verbose is True:
+        print('Authenticate...')
+        
     auth_method = []
     try:
 
@@ -124,11 +132,12 @@ def connect(connection_params):
             res, data = con.login(connection_params['user'], connection_params['password'])
 
     except Exception as e:
-        print('failed to login')
+        print('Failed to login')
         print(e)
         sys.exit(1)
 
-    print('%s logged in' % connection_params['user'])
+    if verbose is True:
+        print('User %s logged in.' % connection_params['user'])
 
     return con
 
@@ -163,28 +172,41 @@ def inspect_mailbox(connection, mailbox):
     res, [mails_all] = connection.search(None, 'ALL')
     res, [mails_seen] = connection.search(None, 'SEEN')
     mails_all = mails_all.decode('UTF-8').split(' ')
-    if len(mails_all) > 0 and mails_all[0] == '': mails_all.pop()
+    
+    if len(mails_all) > 0 and mails_all[0] == '': 
+        mails_all.pop()
+        
     mails_seen = mails_seen.decode('UTF-8').split(' ')
-    if len(mails_seen) > 0 and mails_seen[0] == '': mails_seen.pop()
+    if len(mails_seen) > 0 and mails_seen[0] == '': 
+        mails_seen.pop()
+        
     mails_per_year = {}
 
     if len(mails_seen) > 0:
+        
+        # run in chunks of 1000 mails... reason: overload of library otherwise
+        i = 0
+        m = mails_seen[i:i + 1000]
+        
+        while len(m) > 0:
+        
+            res, header_data = connection.fetch(','.join(m), '(BODY.PEEK[HEADER])')
+           
+            pattern_mailid = re.compile('(?P<msgid>.*?) .*')
+            for h in header_data:
+                if isinstance(h, tuple):
 
-        res, header_data = connection.fetch(','.join(mails_seen), '(BODY.PEEK[HEADER])')
-       
-        pattern_mailid = re.compile('(?P<msgid>.*?) .*')
-        for h in header_data:
-            if isinstance(h, tuple):
+                    mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
+                    mail_header = h[1].split(b'\r\n')
+                    for mh in mail_header:
+                        if mh.startswith(b'Date:'):
 
-                mail_id = pattern_mailid.match(h[0].decode('UTF-8')).groups()[0]
-                mail_header = h[1].split(b'\r\n')
-                for mh in mail_header:
-                    if mh.startswith(b'Date:'):
-
-                        mail_year = email.utils.parsedate(str(mh)[8:])[0]
-                        if mail_year not in mails_per_year:
-                            mails_per_year[mail_year] = []
-                        mails_per_year[mail_year].append(mail_id)
+                            mail_year = email.utils.parsedate(str(mh)[8:])[0]
+                            if mail_year not in mails_per_year:
+                                mails_per_year[mail_year] = []
+                            mails_per_year[mail_year].append(mail_id)
+            i = i + 1000
+            m = mails_seen[i:i + 1000]
 
     return mails_all, mails_seen, mails_per_year
 
@@ -198,9 +220,11 @@ def main():
 
     parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, 
             help='Dry run: do not actually make any steps but act as if.')
+    parser.add_argument('-V', '--verbose', dest='verbose', action='store_const', const=True, default=False, 
+            help='Be verbose.')
     parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, 
             help='Show version information and exit.')
-
+    
     subparser = parser.add_subparsers(help='sub-commands')
 
     parser_scan = subparser.add_parser('scan', help='scan IMAP folders')
@@ -218,9 +242,9 @@ def main():
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM', 
-            help='mailbox to start moving from.')
+            help='Mailbox to start moving from.')
     parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO', 
-            help='mailbox to move to.')
+            help='Mailbox to move to.')
     parser_move.set_defaults(func = move)
 
     parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
@@ -256,7 +280,7 @@ def max_year():
 def move(args):
 
     """Move old mails from one mailsbox to another, keeping the folder structure"""
-    con = connect(parse_connection(args.connect_url))
+    con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
     res, mailbox_list = con.list(args.mailbox_from)
 
     mail_max_year = max_year()
@@ -275,7 +299,7 @@ def move(args):
         for y in mails_old:
             if y < mail_max_year:
                 archive_mailbox = '"' + args.mailbox_to + delimiter + str(y) + delimiter + mb + '"'
-                print("mailbox: %s - moving %d mails to %s" % (mailbox, len(mails_old[y]), archive_mailbox))
+                print("Mailbox: %s - moving %d mails to %s" % (mailbox, len(mails_old[y]), archive_mailbox))
                 if not args.dry_run:
                     create_mailbox(con, delimiter, archive_mailbox)
                     mail_ids = ','.join(mails_old[y])
@@ -289,7 +313,7 @@ def move(args):
         pass
 
 
-def parse_connection(connection_string):
+def parse_connection(connection_string, verbose):
 
     """Parse and get connection params 
     
@@ -301,7 +325,7 @@ def parse_connection(connection_string):
     con = {}
     parts_at = connection_string.split('@')
     if len(parts_at) == 1:
-        print('malformed connection string - type --help for help')
+        print('Malformed connection string - type --help for help')
         sys.exit(1)
 
     host_and_port = parts_at[-1:][0]
@@ -318,12 +342,12 @@ def parse_connection(connection_string):
             con['port'] = int(host_and_port.split(':')[-1:][0])
 
     except Exception as e:
-        print('failed to parse mailserver part')
+        print('Ffailed to parse mailserver part')
         print(e)
         sys.exit(1)
 
     if len(con['host']) == 0:
-        print('cannot deduce host')
+        print('Cannot deduce host')
         sys.exit(1)
 
     try:
@@ -333,17 +357,26 @@ def parse_connection(connection_string):
             con['user'] = user_and_password.split(':')[:-1][0]
             con['password'] = user_and_password.split(':')[-1:][0]
     except Exception as e:
-        print('failed to parse credential part')
+        print('Failed to parse credential part')
         print(e)
         sys.exit(1)
 
     if len(con['user']) == 0:
-        print('cannot deduce user')
+        print('Cannot deduce user')
         sys.exit(1)
 
     if 'password' not in con:
         con['password'] = getpass.getpass(
-                'no user password given. plase enter password for user \'%s\': ' % con['user'])
+                'No user password given. Please enter password for user \'%s\': ' % con['user'])
+        
+    if verbose is True:
+        p = '<default>'
+        if 'port' in con:
+            p = str(con['port'])
+        print('User: %s' % con['user'])
+        print('Pass: %s' % ('*' * len(con['password'])))
+        print('Host: %s' % con['host'])
+        print('Port: %s' % p)
 
     return con
 
@@ -351,16 +384,21 @@ def parse_connection(connection_string):
 def scan(args):
 
     """Scan IMAP folders"""
-    con = connect(parse_connection(args.connect_url))
+    con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
     if args.mailbox is None:
         res, mailbox_list = con.list()
     else:
         res, mailbox_list = con.list(args.mailbox)
+    if (args.verbose):
+        print('Mailboxes found: %d.' % len(mailbox_list))
 
     mail_max_year = max_year()
+    if (args.verbose):
+        print('"Old" mails: mails before year %d.' % mail_max_year)
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
+        
         if mailbox_list_item is None:
             continue
 
@@ -373,10 +411,10 @@ def scan(args):
                 if y < mail_max_year:
                     old_mails = old_mails + len(mails_old[y])
 
-            print("mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % (mailbox, len(mails_all), len(mails_seen), old_mails))
+            print("Mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % (mailbox, len(mails_all), len(mails_seen), old_mails))
 
         else:
-            print("mailbox: %s" % mailbox)
+            print("Mailbox: %s" % mailbox)
         
     try: 
         con.close()
