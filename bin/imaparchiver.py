@@ -41,6 +41,7 @@ import email
 import email.utils
 import getpass
 import imaplib
+import inspect
 import re
 import sys
 
@@ -77,8 +78,9 @@ def clean(args):
 
         res, [mail_count] = con.select(mailbox_name)
         if int(mail_count) == 0:
-            print("Mailbox: %s - removing (no mails, no childrem)" % mailbox_name)
+            print("Mailbox: %s - removing (no mails, no children)" % mailbox_name)
             if not args.dry_run:
+                con.select()
                 con.delete(mailbox_name)
 
     try:
@@ -117,6 +119,17 @@ def create_mailbox(connection, delimiter, mailbox):
         connection.create('"' + m + mailbox_part + '"')
         connection.subscribe('"' + m + mailbox_part + '"')
         m = m + mailbox_part + delimiter
+
+
+def debug_line(frame):
+
+    """Dump a current debug line info.
+
+    :param frame frame: the current python interpreter frame object
+    """
+    if not frame is None:
+        tb = inspect.getframeinfo(frame)
+        print("==dgb== %s:%d" % (tb.filename, tb.lineno))
 
 
 def establish_connection(connection_params, verbose):
@@ -287,6 +300,8 @@ def main():
     parser_scan.set_defaults(func = scan)
 
     parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
+    parser_move.add_argument('-o', '--omit-mailbox',
+            help='List of mailboxes to ignore.')
     parser_move.add_argument('connect_url', metavar='CONNECT-URL',
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
@@ -305,9 +320,6 @@ def main():
     parser_clean.set_defaults(func = clean)
 
     args = parser.parse_args()
-    print(args)
-    sys.exit(0)
-
     if 'func' not in dir(args):
         parser.print_help()
         sys.exit(1)
@@ -339,6 +351,7 @@ def move(args):
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
     res, mailbox_list = con.list(args.mailbox_from)
 
+    omit = args.omit_mailbox.split(',')
     mail_max_year = max_year()
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
@@ -347,10 +360,14 @@ def move(args):
             continue
 
         flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
+        mb = strip_mailbox(mailbox)
+        if mb in omit:
+            print('Mailbox: %s - omitted' % mb)
+            continue
+
         mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
 
         # move mails
-        mb = strip_mailbox(mailbox)
         first_move = True
         for y in mails_old:
             if y < mail_max_year:
