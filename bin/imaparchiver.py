@@ -51,7 +51,10 @@ import sys
 
 def clean(args):
 
-    """Clean empty leaf nodes in the IMAP folder structure"""
+    """Clean empty leaf nodes in the IMAP folder structure.
+
+    :param dict args:   argparse.Namespace instance
+    """
 
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
 
@@ -87,10 +90,12 @@ def clean(args):
 
 def connect(connection_params, verbose):
 
-    """Connect to the IMAP server
+    """Connect to the IMAP server.
 
-    connection_params   -- a dict holding connection details
-    @return             -- connection object (imaplib.IMAP)
+    :param dict connection_params:  a dict holding connection details
+    :param bool verbose:            be chatty when processing
+    :return:                        a connection object
+    :rtype:                         imaplib.IMAP4
     """
 
     con = establish_connection(connection_params, verbose)
@@ -101,11 +106,11 @@ def connect(connection_params, verbose):
 
 def create_mailbox(connection, delimiter, mailbox):
 
-    """Create a mailbox name recurisvely
+    """Create a mailbox name recurisvely.
 
-    @param  connection      the IMAP connection
-    @param  delimiter       the current mailbox name delimiter
-    @param  mailbox         the list of mailbox names to create
+    :param imaplib.IMAP4    connection:      the IMAP connection
+    :param str              delimiter:       the current mailbox name delimiter
+    :param list             mailbox:         the list of mailbox names to create
     """
     m = ''
     for mailbox_part in mailbox.split(delimiter):
@@ -118,8 +123,10 @@ def establish_connection(connection_params, verbose):
 
     """Establishes a connection to the IMAP4 server.
 
-    connection_params   -- a dict holding connection details
-    @return             -- connection object (imaplib.IMAP)
+    :param dict connection_params:  a dict holding connection details
+    :param bool verbose:            be chatty when processing
+    :return:                        connection object
+    :rtype:                         imaplib.IMAP4
     """
 
     if verbose is True:
@@ -158,13 +165,12 @@ def establish_connection(connection_params, verbose):
 
 def inspect_mailbox(connection, mailbox):
 
-    """Inspect a mailbox folder and return mail-lists
+    """Inspect a mailbox folder and return mail-lists.
 
-    @param  connection      IMAP connection
-    @param  mailbox         mailbox name
-    @return mails_all       all mails
-    @return mails_seen      seen mails
-    @return mails_per_year  seen mails per year
+    :param imaplib.IMAP4    connection:     the IMAP connection
+    :param str              mailbox:        the mailbox name to inspect
+    :return:                                (all mails, seen mails, seen mails per year)
+    :rtype:                                 tuple(list, list, dict)
     """
 
     connection.select(mailbox)
@@ -212,6 +218,15 @@ def inspect_mailbox(connection, mailbox):
 
 def login(con, connection_params, verbose):
 
+    """Run user authentication against a mail server.
+
+    :param imaplib.IMAP4    con:                the IMAP connection
+    :param dict             connection_params:  a dict holding connection details
+    :param bool             verbose:            be chatty when processing
+    :return:                                    the imap4 connection
+    :rtype:                                     imaplib.IMAP4
+    """
+
     if verbose is True:
         print('Logging in...', end='')
 
@@ -247,7 +262,7 @@ def login(con, connection_params, verbose):
 
 def main():
 
-    """IMAP-Archiver start"""
+    """IMAPArchiver start."""
 
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
@@ -290,6 +305,8 @@ def main():
     parser_clean.set_defaults(func = clean)
 
     args = parser.parse_args()
+    print(args)
+    sys.exit(0)
 
     if 'func' not in dir(args):
         parser.print_help()
@@ -306,14 +323,19 @@ def max_year():
 
     """Returns the maximum year for which mails < max_year() are considered old.
 
-    @return most recent year for which mails are old
+    :return:    most recent year for which mails are old
+    :rtype:     int
     """
     return datetime.date(datetime.date.today().year - 1, 1, 1).year
 
 
 def move(args):
 
-    """Move old mails from one mailsbox to another, keeping the folder structure"""
+    """Move old mails from one mailsbox to another, keeping the folder structure.
+
+    :param dict args:   argparse.Namespace instance
+    """
+
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
     res, mailbox_list = con.list(args.mailbox_from)
 
@@ -349,10 +371,11 @@ def move(args):
 
 def parse_connection(connection_string, verbose):
 
-    """Parse and get connection params
+    """Parse and get connection params.
 
-    @param  connection_string   string of USER[:PASSWORD]@HOST[:PORT]
-    @return connection detail dict
+    :param str  connection_string:  some string in the form "USER[:PASSWORD]@HOST[:PORT]"
+    :return:                        connection detail dict
+    :rtype:                         dict
     """
 
     # worst case scenario: "alice@somehost.domain:password@someotherhost.otherdomain:7892"
@@ -417,7 +440,11 @@ def parse_connection(connection_string, verbose):
 
 def scan(args):
 
-    """Scan IMAP folders"""
+    """Scan IMAP folders.
+
+    :param dict args:   argparse.Namespace instance
+    """
+
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
     if args.mailbox is None:
         res, mailbox_list = con.list()
@@ -459,7 +486,7 @@ def scan(args):
 
 def show_version():
 
-    """Show the version"""
+    """Show the version."""
 
     print('IMAP-Archiver V{0}'.format(__version__))
     print(__author__)
@@ -469,9 +496,10 @@ def show_version():
 
 def strip_mailbox(mailbox):
 
-    """strip leading and trailing quotes from a mailbox name
+    """Strip leading and trailing quotes from a mailbox name.
 
-    @return the mailbox name without quotes
+    :return:    the mailbox name without quotes
+    :rtype:     str
     """
     if mailbox.endswith('"'): mailbox = mailbox[:-1]
     if mailbox.startswith('"'): mailbox = mailbox[1:]
