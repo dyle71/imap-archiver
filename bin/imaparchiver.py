@@ -53,7 +53,7 @@ def clean(args):
 
     """Clean empty leaf nodes in the IMAP folder structure.
 
-    :param dict args:   argparse.Namespace instance
+    :param argparse.Namespace args: parsed command line arguments
     """
 
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
@@ -333,7 +333,7 @@ def move(args):
 
     """Move old mails from one mailsbox to another, keeping the folder structure.
 
-    :param dict args:   argparse.Namespace instance
+    :param argparse.Namespace args: parsed command line arguments
     """
 
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
@@ -442,7 +442,7 @@ def scan(args):
 
     """Scan IMAP folders.
 
-    :param dict args:   argparse.Namespace instance
+    :param argparse.Namespace args: parsed command line arguments
     """
 
     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
