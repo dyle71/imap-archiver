@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ------------------------------------------------------------
-# imap-archiver.py
+# imaparchiver.py
 #
 # startup for IMAP Archiver
 #
@@ -25,11 +25,11 @@
 
 # metadata
 __author__      = 'Oliver Maurhart <dyle@dyle.org>'
-__copyright__   = 'Copyright 2015 Oliver Maurhart'
+__copyright__   = 'Copyright 2015-2017 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
-__title__       = 'imap-archiver'
-__version__     = '0.5'
+__title__       = 'imaparchiver'
+__version__     = '0.5.0'
 
 
 # ------------------------------------------------------------
