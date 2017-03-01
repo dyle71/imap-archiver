@@ -3,7 +3,7 @@
 
 # ------------------------------------------------------------
 # imap-archiver.py
-# 
+#
 # startup for IMAP Archiver
 #
 # This program is free software: you can redistribute it and/or modify
@@ -78,7 +78,7 @@ def clean(args):
             if not args.dry_run:
                 con.delete(mailbox_name)
 
-    try: 
+    try:
         con.close()
         con.logout()
     except:
@@ -88,21 +88,48 @@ def clean(args):
 def connect(connection_params, verbose):
 
     """Connect to the IMAP server
-    
-    @param  connection_params   a dict holding connection details
-    @return connection object (imaplib.IMAP)
+
+    connection_params   -- a dict holding connection details
+    @return             -- connection object (imaplib.IMAP)
+    """
+
+    con = establish_connection(connection_params, verbose)
+    login(con, connection_params, verbose)
+
+    return con
+
+
+def create_mailbox(connection, delimiter, mailbox):
+
+    """Create a mailbox name recurisvely
+
+    @param  connection      the IMAP connection
+    @param  delimiter       the current mailbox name delimiter
+    @param  mailbox         the list of mailbox names to create
+    """
+    m = ''
+    for mailbox_part in mailbox.split(delimiter):
+        connection.create('"' + m + mailbox_part + '"')
+        connection.subscribe('"' + m + mailbox_part + '"')
+        m = m + mailbox_part + delimiter
+
+
+def establish_connection(connection_params, verbose):
+
+    """Establishes a connection to the IMAP4 server.
+
+    connection_params   -- a dict holding connection details
+    @return             -- connection object (imaplib.IMAP)
     """
 
     if verbose is True:
-        print('Connecting...')
-        
+        print('Connecting...', end='')
+
     try:
         if 'port' in connection_params:
             con = imaplib.IMAP4(connection_params['host'], connection_params['port'])
         else:
             con = imaplib.IMAP4(connection_params['host'])
-            
-        con.starttls()
 
     except Exception as e:
         if 'port' in connection_params:
@@ -113,48 +140,20 @@ def connect(connection_params, verbose):
         sys.exit(1)
 
     if verbose is True:
-        print('Authenticate...')
-        
-    auth_method = []
-    try:
+        print('connected.')
+        print('Checking capabilities...', end='')
 
-        # collect authentication methods and login
-        res, capabilities = con.capability()
-        for cap in capabilities[0].split():
-            c = cap.decode('UTF-8')
-            m = re.match('AUTH=(.*)', c)
-            if m is not None and len(m.groups()) == 1:
-                auth_method.append(m.groups()[0])
-        
-        if 'CRAM-MD5' in auth_method:
-            res, data = con.login_cram_md5(connection_params['user'], connection_params['password'])
-        else:
-            res, data = con.login(connection_params['user'], connection_params['password'])
-
-    except Exception as e:
-        print('Failed to login')
-        print(e)
-        sys.exit(1)
-
-    if verbose is True:
-        print('User %s logged in.' % connection_params['user'])
+    res, caps = con.capability()
+    if b'STARTTLS' in caps[0].split():
+        con.starttls()
+        if verbose is True:
+            print('done')
+            print('Switched to STARTTLS.')
+    else:
+        if verbose is True:
+            print('done')
 
     return con
-
-
-def create_mailbox(connection, delimiter, mailbox):
-
-    """Create a mailbox name recurisvely
-    
-    @param  connection      the IMAP connection
-    @param  delimiter       the current mailbox name delimiter
-    @param  mailbox         the list of mailbox names to create
-    """
-    m = ''
-    for mailbox_part in mailbox.split(delimiter):
-        connection.create('"' + m + mailbox_part + '"')
-        connection.subscribe('"' + m + mailbox_part + '"')
-        m = m + mailbox_part + delimiter
 
 
 def inspect_mailbox(connection, mailbox):
@@ -172,26 +171,26 @@ def inspect_mailbox(connection, mailbox):
     res, [mails_all] = connection.search(None, 'ALL')
     res, [mails_seen] = connection.search(None, 'SEEN')
     mails_all = mails_all.decode('UTF-8').split(' ')
-    
-    if len(mails_all) > 0 and mails_all[0] == '': 
+
+    if len(mails_all) > 0 and mails_all[0] == '':
         mails_all.pop()
-        
+
     mails_seen = mails_seen.decode('UTF-8').split(' ')
-    if len(mails_seen) > 0 and mails_seen[0] == '': 
+    if len(mails_seen) > 0 and mails_seen[0] == '':
         mails_seen.pop()
-        
+
     mails_per_year = {}
 
     if len(mails_seen) > 0:
-        
+
         # run in chunks of 1000 mails... reason: overload of library otherwise
         i = 0
         m = mails_seen[i:i + 1000]
-        
+
         while len(m) > 0:
-        
+
             res, header_data = connection.fetch(','.join(m), '(BODY.PEEK[HEADER])')
-           
+
             pattern_mailid = re.compile('(?P<msgid>.*?) .*')
             for h in header_data:
                 if isinstance(h, tuple):
@@ -211,44 +210,79 @@ def inspect_mailbox(connection, mailbox):
     return mails_all, mails_seen, mails_per_year
 
 
+def login(con, connection_params, verbose):
+
+    if verbose is True:
+        print('Logging in...', end='')
+
+    auth_method = []
+    try:
+
+        # collect authentication methods and login
+        res, capabilities = con.capability()
+
+        for cap in capabilities[0].split():
+            c = cap.decode('UTF-8')
+            m = re.match('AUTH=(.*)', c)
+            if m is not None and len(m.groups()) == 1:
+                auth_method.append(m.groups()[0])
+
+        if 'CRAM-MD5' in auth_method:
+            res, data = con.login_cram_md5(connection_params['user'], connection_params['password'])
+        else:
+            print('NO cram-md5')
+            res, data = con.login(connection_params['user'], connection_params['password'])
+
+    except Exception as e:
+        print('Failed to login')
+        print(e)
+        sys.exit(1)
+
+    if verbose is True:
+        print('done.')
+        print('User %s logged in.' % connection_params['user'])
+
+    return con
+
+
 def main():
-    
+
     """IMAP-Archiver start"""
 
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
 
-    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False, 
+    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False,
             help='Dry run: do not actually make any steps but act as if.')
-    parser.add_argument('-V', '--verbose', dest='verbose', action='store_const', const=True, default=False, 
+    parser.add_argument('-V', '--verbose', dest='verbose', action='store_const', const=True, default=False,
             help='Be verbose.')
-    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False, 
+    parser.add_argument('-v', '--version', dest='version', action='store_const', const=True, default=False,
             help='Show version information and exit.')
-    
+
     subparser = parser.add_subparsers(help='sub-commands')
 
     parser_scan = subparser.add_parser('scan', help='scan IMAP folders')
-    parser_scan.add_argument('connect_url', metavar='CONNECT-URL', 
+    parser_scan.add_argument('connect_url', metavar='CONNECT-URL',
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    parser_scan.add_argument('-m', '--mailbox', 
+    parser_scan.add_argument('-m', '--mailbox',
             help='Top mailbox to start scanning.')
-    parser_scan.add_argument('-l', '--list-boxes-only', dest='list_boxes_only', action='store_const', 
+    parser_scan.add_argument('-l', '--list-boxes-only', dest='list_boxes_only', action='store_const',
             const=True, default=False, help='Only list mailbox, do not examine each mail therein.')
     parser_scan.set_defaults(func = scan)
 
     parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
-    parser_move.add_argument('connect_url', metavar='CONNECT-URL', 
+    parser_move.add_argument('connect_url', metavar='CONNECT-URL',
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM', 
+    parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM',
             help='Mailbox to start moving from.')
-    parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO', 
+    parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO',
             help='Mailbox to move to.')
     parser_move.set_defaults(func = move)
 
     parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
-    parser_clean.add_argument('connect_url', metavar='CONNECT-URL', 
+    parser_clean.add_argument('connect_url', metavar='CONNECT-URL',
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_clean.add_argument('mailbox', metavar='MAILBOX',
@@ -260,7 +294,7 @@ def main():
     if 'func' not in dir(args):
         parser.print_help()
         sys.exit(1)
-        
+
     if args.version:
         show_version()
         sys.exit(0)
@@ -292,7 +326,7 @@ def move(args):
 
         flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
         mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
-        
+
         # move mails
         mb = strip_mailbox(mailbox)
         first_move = True
@@ -306,7 +340,7 @@ def move(args):
                     con.copy(mail_ids, archive_mailbox)
                     con.store(mail_ids, '+FLAGS', r'(\Deleted)')
 
-    try: 
+    try:
         con.close()
         con.logout()
     except:
@@ -315,8 +349,8 @@ def move(args):
 
 def parse_connection(connection_string, verbose):
 
-    """Parse and get connection params 
-    
+    """Parse and get connection params
+
     @param  connection_string   string of USER[:PASSWORD]@HOST[:PORT]
     @return connection detail dict
     """
@@ -332,7 +366,7 @@ def parse_connection(connection_string, verbose):
     if len(parts_at) > 2:
         user_and_password = '@'.join(parts_at[:-1])
     else:
-        user_and_password = parts_at[0] 
+        user_and_password = parts_at[0]
 
     try:
         if host_and_port.find(':') == -1:
@@ -368,7 +402,7 @@ def parse_connection(connection_string, verbose):
     if 'password' not in con:
         con['password'] = getpass.getpass(
                 'No user password given. Please enter password for user \'%s\': ' % con['user'])
-        
+
     if verbose is True:
         p = '<default>'
         if 'port' in con:
@@ -398,7 +432,7 @@ def scan(args):
 
     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
     for mailbox_list_item in mailbox_list:
-        
+
         if mailbox_list_item is None:
             continue
 
@@ -415,8 +449,8 @@ def scan(args):
 
         else:
             print("Mailbox: %s" % mailbox)
-        
-    try: 
+
+    try:
         con.close()
         con.logout()
     except:
@@ -446,4 +480,3 @@ def strip_mailbox(mailbox):
 
 if __name__ == "__main__":
     main()
-

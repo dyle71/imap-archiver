@@ -1,5 +1,5 @@
-imap-archiver
-=============
+imaparchiver
+============
 
 This tool moves email messages and structures from imap accounts to dedicated archive folders.
 
@@ -37,7 +37,7 @@ to
 So your IMAP folders wont be bloated with old messages but are cleaned continually. Ideally 
 you may download all the mails from last year but one and clean you IMAP Account.
 
-    usage: imap-archiver.py [-h] [-d] [-v] {scan,move,clean} ...
+    usage: imaparchiver.py [-h] [-d] [-v] {scan,move,clean} ...
 
     IMAP-Archiver
 
@@ -57,7 +57,7 @@ Detailed command options:
 
 Scan: scans the IMAP account for old mails.
 
-    imap-archiver.py scan [-h] [-m MAILBOX] [-l] CONNECT-URL
+    imaparchiver.py scan [-h] [-m MAILBOX] [-l] CONNECT-URL
 
     positional arguments:
       CONNECT-URL           Connection details. Syntax is USER[:PASS]@HOST[:PORT]
@@ -74,7 +74,7 @@ Scan: scans the IMAP account for old mails.
 
 Move: move old mails to dediacted sub folder
 
-    imap-archiver.py move [-h] CONNECT-URL MAILBOX-FROM MAILBOX-TO
+    imaparchiver.py move [-h] CONNECT-URL MAILBOX-FROM MAILBOX-TO
 
     positional arguments:
       CONNECT-URL   Connection details. Syntax is USER[:PASS]@HOST[:PORT] like
@@ -88,7 +88,7 @@ Move: move old mails to dediacted sub folder
 
 Clean/Purge: remove empty (no mails, no child) mailboxes at the bottom of the mailbox tree
 
-    imap-archiver.py clean [-h] CONNECT-URL MAILBOX
+    imaparchiver.py clean [-h] CONNECT-URL MAILBOX
 
     positional arguments:
       CONNECT-URL  Connection details. Syntax is USER[:PASS]@HOST[:PORT] like
@@ -122,6 +122,6 @@ Clean or prune empty subfolders:
 
 
 
-(C)opyright 2015, Oliver Maurhart
+(C)opyright 2015-2017, Oliver Maurhart
 dyle@dyle.org
 
