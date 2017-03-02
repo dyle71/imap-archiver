@@ -39,7 +39,6 @@ __version__     = '0.5.0'
 
 
 def set_verbose(verbose):
-    Connection.verbose = True
-    Mailbox.verbose = True
-    Mail.verbose = True
-    
+    Connection.verbose = verbose
+    Mailbox.verbose = verbose
+    Mail.verbose = verbose

@@ -58,6 +58,16 @@ class Connection(object):
         self.login(username, password)
 
 
+    def __del__(self):
+        """Destructor."""
+        try:
+            if not self._connection is None:
+                self._connection.close()
+                self._connection.logout()
+        except:
+            pass
+
+
     def establish(self, host, port):
 
         """Establishes a connection to the IMAP4 server.
@@ -99,21 +109,10 @@ class Connection(object):
                 print('done')
 
 
-    def fetch(self, ids, message_parts):
-        """Get some content from the IMAP4 server.
-
-        Example:
-
-        >>> con.fetch('1,2', '(BODY)')
-        ('OK', [b'1 (BODY ("text" "plain" ("charset" "UTF-8") NIL NIL "8bit" 909 38))',
-                b'2 (BODY ("text" "plain" ("charset" "ISO-8859-1" "format" "flowed") NIL NIL "7bit" 696 32))'])
-
-        :param list[int] ids:       the mail ids requested
-        :param str message_parts:   content requested
-        :return:                    return code, list[content]
-        :rtype:                     str, list[bytes]
-        """
-        return self._connection.fetch(ids, message_parts)
+    @property
+    def imap4(self):
+        """Get the imaplib.IMAP4 object instance"""
+        return self._connection
 
 
     def login(self, username, password):
@@ -177,26 +176,6 @@ class Connection(object):
             mbs[mb.name] = mb
 
         return mbs
-
-
-    def search(self, *criteria):
-        """Search inside the selected mailbox.
-
-        :param str* criteria:   IMAP4 search criterias
-        :return:                result string, mail ids matching the criteris
-        :rtype:                 str, list[bytes]
-        """
-        return self._connection.search(None, *criteria)
-
-
-    def select(self, mailbox):
-
-        """Select a mailbox for the next IMAP operation.
-
-        :param str mailbox: the mailbox
-        :return:            number of mails in the mailbox
-        """
-        return self._connection.select(mailbox)
 
 
 if __name__ == "__main__":

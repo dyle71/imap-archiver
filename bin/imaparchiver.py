@@ -244,14 +244,6 @@ def main():
     # parser_clean.add_argument('mailbox', metavar='MAILBOX',
     #         help='Top mailbox to start cleaning.')
     # parser_clean.set_defaults(func = clean)
-    #
-    # parser_undelete = subparser.add_parser('undelete', help='undelete mails recursively which have been marked for deletion.')
-    # parser_undelete.add_argument('connect_url', metavar='CONNECT-URL',
-    #         help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
-    #             \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    # parser_undelete.add_argument('mailbox', metavar='MAILBOX',
-    #         help='Top mailbox to start undeleting.')
-    # parser_undelete.set_defaults(func = undelete)
 
     args = parser.parse_args()
     if args.version:
@@ -404,7 +396,7 @@ def scan(args):
     con = Connection(host, port, username, password)
 
     header_shown = False
-    mbs = con.mailboxes()
+    mbs = con.mailboxes(args.mailbox)
     for mb in sorted(mbs):
 
         if not header_shown:
@@ -412,53 +404,12 @@ def scan(args):
             print('%s-----------------------------------------' % ('-' * 70))
             header_shown = True
 
-        mails_all, mails_seen, mails_deleted, mails_per_year = mbs[mb].inspect()
-        print('%-70s       %5d        %5d           %5d' % (mb, len(mails_all), len(mails_seen), len(mails_deleted)))
 
-
-# def scan(args):
-#
-#     """Scan IMAP folders.
-#
-#     :param argparse.Namespace args: parsed command line arguments
-#     """
-#
-#     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
-#     if args.mailbox is None:
-#         res, mailbox_list = con.list()
-#     else:
-#         res, mailbox_list = con.list(args.mailbox)
-#     if (args.verbose):
-#         print('Mailboxes found: %d.' % len(mailbox_list))
-#
-#     mail_max_year = max_year()
-#     if (args.verbose):
-#         print('"Old" mails: mails before year %d.' % mail_max_year)
-#
-#     for mailbox_list_item in mailbox_list:
-#
-#         if mailbox_list_item is None:
-#             continue
-#
-#         flags, delimiter, mailbox = decode_mailbox_list_entry(mailbox_list_item)
-#
-#         if not args.list_boxes_only:
-#             mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
-#             old_mails = 0
-#             for y in mails_old:
-#                 if y < mail_max_year:
-#                     old_mails = old_mails + len(mails_old[y])
-#
-#             print("Mailbox: %s - ALL: %d, SEEN: %d, OLD: %d" % (mailbox, len(mails_all), len(mails_seen), old_mails))
-#
-#         else:
-#             print("Mailbox: %s" % mailbox)
-#
-#     try:
-#         con.close()
-#         con.logout()
-#     except:
-#         pass
+        if not args.list_boxes_only:
+            mails_all, mails_seen, mails_deleted, mails_per_year = mbs[mb].inspect()
+            print('%-70s       %5d        %5d           %5d' % (mb, len(mails_all), len(mails_seen), len(mails_deleted)))
+        else:
+            print('%-70s                                   ' % (mb))
 
 
 def show_version():
@@ -472,50 +423,6 @@ def show_version():
     print(imaparchiver.__copyright__)
     print('Licensed under the terms of %s' % imaparchiver.__license__)
     print('Please read %s' % imaparchiver.__licenseurl__)
-
-
-# def undelete(args):
-#
-#     """Undelete mails marked for deletion.
-#
-#     :param argparse.Namespace args: parsed command line arguments
-#     """
-#
-#     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
-#     if args.mailbox is None:
-#         res, mailbox_list = con.list()
-#     else:
-#         res, mailbox_list = con.list(args.mailbox)
-#     if (args.verbose):
-#         print('Mailboxes found: %d.' % len(mailbox_list))
-#
-#     pattern = re.compile(r'.*Deleted.*')
-#     for mailbox_list_item in mailbox_list:
-#
-#         if mailbox_list_item is None:
-#             continue
-#
-#         flags, delimiter, mailbox = decode_mailbox_list_entry(mailbox_list_item)
-#         if args.verbose:
-#             print('undeleting mails in: ' + mailbox + '...')
-#
-#         con.select(mailbox)
-#         typ, msgids = con.search(None, 'All')
-#         if len(msgids[0]) == 0:
-#             continue
-#
-#         for id in str(msgids[0]).split(' '):
-#             msgid = bytes(id, 'utf-8')
-#             print('msgid=' + str(msgid))
-#             res, flags = con.fetch(msgid, '(FLAGS)')
-#             if pattern.match(flags.decode('utf-8')):
-#                 con.store(msgids, '+FLAGS', '\\Deleted')
-#
-#     try:
-#         con.close()
-#         con.logout()
-#     except:
-#         pass
 
 
 if __name__ == "__main__":

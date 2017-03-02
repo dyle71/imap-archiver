@@ -70,7 +70,7 @@ class Mailbox(object):
 
 
     def fetch(self, ids, message_parts):
-        """Get some content from the IMAP4 server.
+        """Get some content from the IMAP4 server within this mailbox.
 
         Example:
 
@@ -84,7 +84,7 @@ class Mailbox(object):
         :rtype:                     str, list[bytes]
         """
         self.select()
-        return self._connection.fetch(ids, message_parts)
+        return self._connection.imap4.fetch(ids, message_parts)
 
 
     def inspect(self):
@@ -152,16 +152,47 @@ class Mailbox(object):
 
 
     def search(self, *criteria):
-        """Search this mailbox for mails of a criteria."""
+        """Search inside the selected mailbox.
+
+        :param str* criteria:   IMAP4 search criterias
+        :return:                result string, mail ids matching the criteris
+        :rtype:                 str, list[bytes]
+        """
         self.select()
-        return self._connection.search(*criteria)
+        return self._connection.imap4.search(None, *criteria)
 
 
     def select(self):
-        """Set this mailbox as current mailbox."""
+
+        """Select a mailbox for the next IMAP operation.
+
+        :param str mailbox: the mailbox
+        :return:            number of mails in the mailbox
+        """
         if not self._connection:
             raise RuntimeError('No connection.')
-        self._connection.select(self.path)
+        return self._connection.imap4.select(self.path)
+
+
+    def undelete(self):
+
+        """Undelete all mails within this mailbox."""
+
+        self.select()
+        res, [mails_deleted] = self.search('DELETED')
+
+        # # run in chunks of 1000 mails... reason: overload of library otherwise
+        # i = 0
+        # m = mails_deleted[i:i + 1000]
+        # while len(m) > 0:
+        #     print(m)
+        #     print(','.join(m))
+        #     #self._connection.imap4.store(','.join(m), '-FLAGS', '\\Deleted')
+        #     i = i + 1000
+        #     m = mails_deleted[i:i + 1000]
+        #
+        # if Mailbox.verbose:
+        #     print("Undeleted %d mails in folder %s." % (len(mails_deleted), self.name))
 
 
 if __name__ == "__main__":
