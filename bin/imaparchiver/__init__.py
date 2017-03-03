@@ -23,7 +23,6 @@
 
 from imaparchiver.connection import Connection
 from imaparchiver.mailbox import Mailbox
-from imaparchiver.mail import Mail
 
 
 # public modules
@@ -38,7 +37,44 @@ __title__       = 'imaparchiver'
 __version__     = '0.5.0'
 
 
-def set_verbose(verbose):
-    Connection.verbose = verbose
-    Mailbox.verbose = verbose
-    Mail.verbose = verbose
+verbose = False
+"""Global verbose flag."""
+
+
+def quote_path(path):
+
+    """Add quotes to mailbox path if necessary.
+
+    :param str path:    a mailbox path
+    :return:            an quoted mailbox path (if necessary)
+    :rtype:             str
+    """
+
+    path_quoted = path
+    if not ' ' in path_quoted:
+        return path_quoted
+
+    if path_quoted[0] != '"':
+        path_quoted = '"' + path_quoted
+    if path_quoted[-1] != '"':
+        path_quoted = path_quoted + '"'
+
+    return path_quoted
+
+
+def strip_path(path):
+
+    """Remove quotes from a mailbox path.
+
+    :param str path:    a mailbox path
+    :return:            an unquoted mailbox path
+    :rtype:             str
+    """
+
+    path_stripped = path
+    while len(path_stripped) > 0 and path_stripped[0] == '"':
+        path_stripped = path_stripped[1:]
+    while len(path_stripped) > 0 and path_stripped[-1] == '"':
+        path_stripped = path_stripped[:-1]
+
+    return path_stripped

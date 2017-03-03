@@ -26,6 +26,8 @@
 import email.utils
 import re
 
+import imaparchiver
+
 
 # ------------------------------------------------------------
 # code
@@ -34,8 +36,6 @@ class Mailbox(object):
 
     """This is a single mailbox found on the IMAP4 server."""
 
-    verbose = False
-    """Verbose on mailbox methods."""
 
     def __init__(self, connection, mailbox_entry):
 
@@ -55,6 +55,7 @@ class Mailbox(object):
         flags, delimiter, mailbox = pattern.match(mailbox_entry.decode('utf-8')).groups()
 
         self._children = not re.match('.*HasChildren.*', flags) is None
+        self._delimiter = delimiter
         self._path = mailbox
         self._name = mailbox
         if self._name.endswith('"'):
@@ -66,7 +67,26 @@ class Mailbox(object):
 
     @property
     def children(self):
+        """Does this mailbox do have children?"""
         return self._children
+
+
+    def copy(self, mail_ids, destination):
+        """Copy mails from the current mailbox to a destination mailbox.
+
+        :param list[str] mail_ids:  list of mail ids to copy
+        :param str destination:     name of destination mailbox
+        """
+        self.select()
+        m = ','.join(mail_ids)
+        d = imaparchiver.quote_path(destination)
+        self._connection.imap4.copy(m, d)
+
+
+    @property
+    def delimiter(self):
+        """Mailbox name delimiter used to build mailbox hirarchy."""
+        return self._delimiter
 
 
     def fetch(self, ids, message_parts):
@@ -143,11 +163,13 @@ class Mailbox(object):
 
     @property
     def name(self):
+        """The name of the mailbox stripped from leading and trialing quotes to be better human readable."""
         return self._name
 
 
     @property
     def path(self):
+        """The mailbox id used by the IMAP4 server."""
         return self._path
 
 
@@ -174,25 +196,21 @@ class Mailbox(object):
         return self._connection.imap4.select(self.path)
 
 
-    def undelete(self):
+    def store(self, mail_ids, operation, flags):
+        """Modify mail flags inside this mailbox.
 
-        """Undelete all mails within this mailbox."""
+        This will delete the mails 1, 2 and 5 in the current mailbox.
 
+        >>> mb = Mailbox(...)
+        >>> mb.store([b'1', b'2', b'5'], '+FLAGS', r'(\Deleted)')
+
+        :param list[str] mail_ids:  list of mail ids to modify
+        :param str operation:       flag operation
+        :param str flags:           IMAP4 flags to apply
+        """
         self.select()
-        res, [mails_deleted] = self.search('DELETED')
-
-        # # run in chunks of 1000 mails... reason: overload of library otherwise
-        # i = 0
-        # m = mails_deleted[i:i + 1000]
-        # while len(m) > 0:
-        #     print(m)
-        #     print(','.join(m))
-        #     #self._connection.imap4.store(','.join(m), '-FLAGS', '\\Deleted')
-        #     i = i + 1000
-        #     m = mails_deleted[i:i + 1000]
-        #
-        # if Mailbox.verbose:
-        #     print("Undeleted %d mails in folder %s." % (len(mails_deleted), self.name))
+        m = ','.join(mail_ids)
+        self._connection.imap4.store(m, operation, flags)
 
 
 if __name__ == "__main__":

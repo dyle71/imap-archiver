@@ -20,3 +20,6 @@ Indices and tables
 .. * :ref:`modindex`
 .. * :ref:`search`
 
+Sample:
+$ bin/imaparchiver.py -V move --omit-mailbox INBOX dyle@dyle.org@dyle.org INBOX Archives
+$ bin/imaparchiver.py -V move dyle@dyle.org@dyle.org '"INBOX.Persons.Wohlfahrt Stephanie"' Archives

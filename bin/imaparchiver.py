@@ -28,7 +28,7 @@
 # imports
 
 import argparse
-# import datetime
+import datetime
 # import email
 # import email.utils
 import getpass
@@ -225,18 +225,18 @@ def main():
             const=True, default=False, help='Only list mailbox, do not examine each mail therein.')
     parser_scan.set_defaults(func = scan)
 
-    # parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
-    # parser_move.add_argument('-o', '--omit-mailbox',
-    #         help='List of mailboxes to ignore.')
-    # parser_move.add_argument('connect_url', metavar='CONNECT-URL',
-    #         help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
-    #             \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    # parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM',
-    #         help='Mailbox to start moving from.')
-    # parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO',
-    #         help='Mailbox to move to.')
-    # parser_move.set_defaults(func = move)
-    #
+    parser_move = subparser.add_parser('move', help='move old emails to target mailbox')
+    parser_move.add_argument('-o', '--omit-mailbox',
+            help='List of mailboxes to ignore.')
+    parser_move.add_argument('connect_url', metavar='CONNECT-URL',
+            help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
+                \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM',
+            help='Mailbox to start moving from.')
+    parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO',
+            help='Mailbox to move to.')
+    parser_move.set_defaults(func = move)
+
     # parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
     # parser_clean.add_argument('connect_url', metavar='CONNECT-URL',
     #         help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
@@ -254,63 +254,64 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    imaparchiver.set_verbose(args.verbose)
+    imaparchiver.verbose = args.verbose
     args.func(args)
 
 
-# def max_year():
-#
-#     """Returns the maximum year for which mails < max_year() are considered old.
-#
-#     :return:    most recent year for which mails are old
-#     :rtype:     int
-#     """
-#     return datetime.date(datetime.date.today().year - 1, 1, 1).year
-#
-#
-# def move(args):
-#
-#     """Move old mails from one mailsbox to another, keeping the folder structure.
-#
-#     :param argparse.Namespace args: parsed command line arguments
-#     """
-#
-#     con = connect(parse_connection(args.connect_url, args.verbose), args.verbose)
-#     res, mailbox_list = con.list(args.mailbox_from)
-#
-#     omit = args.omit_mailbox.split(',')
-#     mail_max_year = max_year()
-#
-#     pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-#     for mailbox_list_item in mailbox_list:
-#         if mailbox_list_item is None:
-#             continue
-#
-#         flags, delimiter, mailbox = pattern.match(mailbox_list_item.decode('UTF-8')).groups()
-#         mb = strip_mailbox(mailbox)
-#         if mb in omit:
-#             print('Mailbox: %s - omitted' % mb)
-#             continue
-#
-#         mails_all, mails_seen, mails_old = inspect_mailbox(con, mailbox)
-#
-#         # move mails
-#         first_move = True
-#         for y in mails_old:
-#             if y < mail_max_year:
-#                 archive_mailbox = args.mailbox_to + delimiter + str(y) + delimiter + mb
-#                 print("Mailbox: %s - moving %d mails to %s" % (mailbox, len(mails_old[y]), archive_mailbox))
-#                 if not args.dry_run:
-#                     create_mailbox(con, delimiter, archive_mailbox)
-#                     mail_ids = ','.join(mails_old[y])
-#                     con.copy(mail_ids, archive_mailbox)
-#                     con.store(mail_ids, '+FLAGS', r'(\Deleted)')
-#
-#     try:
-#         con.close()
-#         con.logout()
-#     except:
-#         pass
+def max_year():
+
+    """Returns the maximum year for which mails < max_year() are considered old.
+
+    :return:    most recent year for which mails are old
+    :rtype:     int
+    """
+    return datetime.date(datetime.date.today().year - 1, 1, 1).year
+
+
+def move(args):
+
+    """Move old mails from one mailbox to another, keeping the folder structure.
+
+    :param argparse.Namespace args: parsed command line arguments
+    """
+
+    host, port, username, password = parse_connection(args.connect_url, args.verbose)
+    con = Connection(host, port, username, password)
+
+    omit = []
+    if args.omit_mailbox:
+        omit = args.omit_mailbox.split(',')
+    mail_max_year = max_year()
+    if args.verbose:
+        print('Year sent of mails to be moved: <' + str(mail_max_year))
+
+    mbs = con.mailboxes(args.mailbox_from)
+    for mb in sorted(mbs):
+
+        if mbs[mb] is None:
+            continue
+        if mb in omit:
+            print('Omitting mailbox ' + mb)
+            continue
+
+        if args.verbose:
+            print('Checking mailbox ' + mb + '... ')
+
+        mails_all, mails_seen, mails_deleted, mails_per_year = mbs[mb].inspect()
+
+        # move mails
+        first_move = True
+        for year in mails_per_year:
+            if year < mail_max_year:
+                archive_mailbox = args.mailbox_to + mbs[mb].delimiter + str(year) + mbs[mb].delimiter + mb
+                if ' ' in archive_mailbox:
+                    archive_mailbox = '"' + archive_mailbox + '"'
+
+                print("Mailbox: %s - moving %d mails to %s" % (mb, len(mails_per_year[year]), archive_mailbox))
+                if not args.dry_run:
+                    con.create_mailbox(archive_mailbox, mbs[mb].delimiter)
+                    mbs[mb].copy(mails_per_year[year], archive_mailbox)
+                    mbs[mb].store(mails_per_year[year], '+FLAGS', r'(\Deleted)')
 
 
 def parse_connection(connection_string, verbose):

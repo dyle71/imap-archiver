@@ -30,7 +30,7 @@ import imaplib
 import re
 import sys
 
-from imaparchiver.mailbox import Mailbox
+import imaparchiver
 
 
 # ------------------------------------------------------------
@@ -40,8 +40,6 @@ class Connection(object):
 
     """This represents a IMAP4 connection."""
 
-    verbose = False
-    """Verbose on connection methods."""
 
     def __init__(self, host, port, username, password):
         """Constructor.
@@ -67,6 +65,39 @@ class Connection(object):
         except:
             pass
 
+    def create_mailbox(self, path, delimiter):
+
+        """Create a mailbox folder (recurisvely)  on the server.
+
+        The folder path given is created recurisvely. So if path = 'a.b.c.' then
+        the folder 'a' is created, then 'b' and finally 'c'.
+
+        :param str path:        the mailbox folder name as understood by the IMAP4 server.
+        :param str delimiter:   path delimier used
+        """
+
+        if not self._connection:
+            raise RuntimeError('No connection to IMAP4 server.')
+
+        if len(path) == 0:
+            return
+
+        path_stripped = imaparchiver.strip_path(path)
+
+        mb = ''
+        for path_particle in path_stripped.split(delimiter):
+
+            if len(mb) > 0:
+                mb = mb + delimiter
+            mb = mb + path_particle
+
+            mb_quoted = mb
+            if ' ' in mb:
+                mb_quoted = '"' + mb + '"'
+
+            self._connection.create(mb_quoted)
+            self._connection.subscribe(mb_quoted)
+
 
     def establish(self, host, port):
 
@@ -76,7 +107,7 @@ class Connection(object):
         :param int port:    the port to connect to
         """
 
-        if Connection.verbose is True:
+        if imaparchiver.verbose is True:
             print('Connecting... ', end='')
 
         try:
@@ -94,18 +125,18 @@ class Connection(object):
             self._connection = None
             sys.exit(1)
 
-        if Connection.verbose is True:
+        if imaparchiver.verbose is True:
             print('connected.')
             print('Checking capabilities...', end='')
 
         res, caps = self._connection.capability()
         if b'STARTTLS' in caps[0].split():
             self._connection.starttls()
-            if Connection.verbose is True:
+            if imaparchiver.verbose is True:
                 print('done')
                 print('Switched to STARTTLS.')
         else:
-            if Connection.verbose is True:
+            if imaparchiver.verbose is True:
                 print('done')
 
 
@@ -126,7 +157,7 @@ class Connection(object):
         if not self._connection:
             raise RuntimeError('No connection to IMAP4 server.')
 
-        if Connection.verbose is True:
+        if imaparchiver.verbose is True:
             print('Logging in... ', end='')
 
         auth_method = []
@@ -151,7 +182,7 @@ class Connection(object):
             print(e)
             sys.exit(1)
 
-        if Connection.verbose is True:
+        if imaparchiver.verbose is True:
             print('done.')
             print('User %s logged in.' % username)
 
@@ -172,7 +203,7 @@ class Connection(object):
 
         mbs = {}
         for m in mailbox_list:
-            mb = Mailbox(self, m)
+            mb = imaparchiver.Mailbox(self, m)
             mbs[mb.name] = mb
 
         return mbs
