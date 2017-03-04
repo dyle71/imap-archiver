@@ -83,10 +83,22 @@ class Mailbox(object):
         self._connection.imap4.copy(m, d)
 
 
+    def delete(self):
+        """Delete this mailbox on the IMAP4 server."""
+        self._connection.imap4.select()
+        self._connection.imap4.delete(self.path)
+
+
     @property
     def delimiter(self):
         """Mailbox name delimiter used to build mailbox hirarchy."""
         return self._delimiter
+
+
+    def expunge(self):
+        """Permanently delete marked mails in current mailbox."""
+        self.select()
+        self._connection.imap4.expunge()
 
 
     def fetch(self, ids, message_parts):
@@ -193,7 +205,7 @@ class Mailbox(object):
         """
         if not self._connection:
             raise RuntimeError('No connection.')
-        return self._connection.imap4.select(self.path)
+        return int(self._connection.imap4.select(self.path)[1][0])
 
 
     def store(self, mail_ids, operation, flags):
