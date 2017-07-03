@@ -41,15 +41,13 @@ import imaparchiver
 
 
 def clean(args):
-
-    """Clean empty leaf nodes in the IMAP folder structure.
-
-    :param argparse.Namespace args: parsed command line arguments
     """
+        Clean empty leaf nodes in the IMAP folder structure.
 
+        :param argparse.Namespace args: parsed command line arguments
+    """
     host, port, username, password = parse_connection(args.connect_url, args.verbose)
     con = Connection(host, port, username, password)
-
     mbs = con.mailboxes(args.mailbox)
     for mb in sorted(mbs):
 
@@ -62,9 +60,7 @@ def clean(args):
 
 
 def main():
-
     """IMAPArchiver start."""
-
     # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
 
@@ -131,12 +127,11 @@ def max_year():
 
 
 def move(args):
-
-    """Move old mails from one mailbox to another, keeping the folder structure.
-
-    :param argparse.Namespace args: parsed command line arguments
     """
+        Move old mails from one mailbox to another, keeping the folder structure.
 
+        :param argparse.Namespace args: parsed command line arguments
+    """
     host, port, username, password = parse_connection(args.connect_url, args.verbose)
     con = Connection(host, port, username, password)
 
@@ -178,14 +173,13 @@ def move(args):
 
 
 def parse_connection(connection_string, verbose):
-
-    """Parse and get connection params.
-
-    :param str  connection_string:  some string in the form "USER[:PASSWORD]@HOST[:PORT]"
-    :return:                        host, port, username, password
-    :rtype:                         str, int, str, password
     """
+        Parse and get connection params.
 
+        :param str  connection_string:  some string in the form "USER[:PASSWORD]@HOST[:PORT]"
+        :return:                        host, port, username, password
+        :rtype:                         str, int, str, password
+    """
     # worst case scenario: "alice@somehost.domain:password@someotherhost.otherdomain:7892"
     host = ''
     port = 0
@@ -250,15 +244,13 @@ def parse_connection(connection_string, verbose):
 
 
 def scan(args):
-
-    """Scan IMAP folders.
-
-    :param argparse.Namespace args: parsed command line arguments
     """
+        Scan IMAP folders.
 
+        :param argparse.Namespace args: parsed command line arguments
+    """
     host, port, username, password = parse_connection(args.connect_url, args.verbose)
     con = Connection(host, port, username, password)
-
     header_shown = False
     mbs = con.mailboxes(args.mailbox)
     for mb in sorted(mbs):
@@ -268,7 +260,6 @@ def scan(args):
             print('%s-----------------------------------------' % ('-' * 70))
             header_shown = True
 
-
         if not args.list_boxes_only:
             mails_all, mails_seen, mails_deleted, mails_per_year = mbs[mb].inspect()
             print('%-70s       %5d        %5d           %5d' % (mb, len(mails_all), len(mails_seen), len(mails_deleted)))
@@ -277,11 +268,7 @@ def scan(args):
 
 
 def show_version():
-
     """Show the version."""
-
-    import imaparchiver
-
     print('IMAP-Archiver V{0}'.format(imaparchiver.__version__))
     print(imaparchiver.__author__)
     print(imaparchiver.__copyright__)

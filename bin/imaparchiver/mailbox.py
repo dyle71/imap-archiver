@@ -36,24 +36,22 @@ class Mailbox(object):
 
     """This is a single mailbox found on the IMAP4 server."""
 
-
     def __init__(self, connection, mailbox_entry):
 
-        """Constructor.
-
-        Deconstruct a IMAP4 server mailbox response. This response may look like:
-
-            b'(\\HasNoChildren) "." "INBOX.Subfolder.Folder with Spaces"'
-        or
-            b'(\\HasChildren) "." INBOX.Subfolder.Folder_with_no_spaces'
-
-        :param imaparchiver.Connection connection:  parent IMAP4 server connection instance
-        :param str mailbox_entry:                   the mailbox entry as passed by the server
         """
+            Constructor.
 
+            Deconstruct a IMAP4 server mailbox response. This response may look like:
+
+                b'(\\HasNoChildren) "." "INBOX.Subfolder.Folder with Spaces"'
+            or
+                b'(\\HasChildren) "." INBOX.Subfolder.Folder_with_no_spaces'
+
+            :param imaparchiver.Connection connection:  parent IMAP4 server connection instance
+            :param str mailbox_entry:                   the mailbox entry as passed by the server
+        """
         pattern = re.compile(r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
         flags, delimiter, mailbox = pattern.match(mailbox_entry.decode('utf-8')).groups()
-
         self._children = not re.match('.*HasChildren.*', flags) is None
         self._delimiter = delimiter
         self._path = mailbox
@@ -72,10 +70,11 @@ class Mailbox(object):
 
 
     def copy(self, mail_ids, destination):
-        """Copy mails from the current mailbox to a destination mailbox.
+        """
+            Copy mails from the current mailbox to a destination mailbox.
 
-        :param list[str] mail_ids:  list of mail ids to copy
-        :param str destination:     name of destination mailbox
+            :param list[str] mail_ids:  list of mail ids to copy
+            :param str destination:     name of destination mailbox
         """
         self.select()
         m = ','.join(mail_ids)
@@ -102,18 +101,19 @@ class Mailbox(object):
 
 
     def fetch(self, ids, message_parts):
-        """Get some content from the IMAP4 server within this mailbox.
+        """
+            Get some content from the IMAP4 server within this mailbox.
 
-        Example:
+            Example:
 
-        >>> con.fetch('1,2', '(BODY)')
-        ('OK', [b'1 (BODY ("text" "plain" ("charset" "UTF-8") NIL NIL "8bit" 909 38))',
-                b'2 (BODY ("text" "plain" ("charset" "ISO-8859-1" "format" "flowed") NIL NIL "7bit" 696 32))'])
+            >>> con.fetch('1,2', '(BODY)')
+            ('OK', [b'1 (BODY ("text" "plain" ("charset" "UTF-8") NIL NIL "8bit" 909 38))',
+                    b'2 (BODY ("text" "plain" ("charset" "ISO-8859-1" "format" "flowed") NIL NIL "7bit" 696 32))'])
 
-        :param list[int] ids:       the mail ids requested
-        :param str message_parts:   content requested
-        :return:                    return code, list[content]
-        :rtype:                     str, list[bytes]
+            :param list[int] ids:       the mail ids requested
+            :param str message_parts:   content requested
+            :return:                    return code, list[content]
+            :rtype:                     str, list[bytes]
         """
         self.select()
         return self._connection.imap4.fetch(ids, message_parts)
@@ -121,12 +121,12 @@ class Mailbox(object):
 
     def inspect(self):
 
-        """Inspect the current mailbox.
-
-        :return:    all mail ids, seen mail ids, deleted mail ids, seen mails per year
-        :rtype:     tuple(list[int], list[int], list[int], dict{int->[int]})
         """
+            Inspect the current mailbox.
 
+            :return:    all mail ids, seen mail ids, deleted mail ids, seen mails per year
+            :rtype:     tuple(list[int], list[int], list[int], dict{int->[int]})
+        """
         res, [mails_all] = self.search('ALL')
         res, [mails_seen] = self.search('SEEN')
         res, [mails_deleted] = self.search('DELETED')
@@ -186,22 +186,23 @@ class Mailbox(object):
 
 
     def search(self, *criteria):
-        """Search inside the selected mailbox.
+        """
+            Search inside the selected mailbox.
 
-        :param str* criteria:   IMAP4 search criterias
-        :return:                result string, mail ids matching the criteris
-        :rtype:                 str, list[bytes]
+            :param str* criteria:   IMAP4 search criterias
+            :return:                result string, mail ids matching the criteris
+            :rtype:                 str, list[bytes]
         """
         self.select()
         return self._connection.imap4.search(None, *criteria)
 
 
     def select(self):
+        """
+            Select a mailbox for the next IMAP operation.
 
-        """Select a mailbox for the next IMAP operation.
-
-        :param str mailbox: the mailbox
-        :return:            number of mails in the mailbox
+            :param str mailbox: the mailbox
+            :return:            number of mails in the mailbox
         """
         if not self._connection:
             raise RuntimeError('No connection.')
@@ -209,16 +210,16 @@ class Mailbox(object):
 
 
     def store(self, mail_ids, operation, flags):
-        """Modify mail flags inside this mailbox.
+        """
+            Modify mail flags inside this mailbox.
 
-        This will delete the mails 1, 2 and 5 in the current mailbox.
+            This will delete the mails 1, 2 and 5 in the current mailbox:
+            >>> mb = Mailbox(...)
+            >>> mb.store([b'1', b'2', b'5'], '+FLAGS', r'(\Deleted)')
 
-        >>> mb = Mailbox(...)
-        >>> mb.store([b'1', b'2', b'5'], '+FLAGS', r'(\Deleted)')
-
-        :param list[str] mail_ids:  list of mail ids to modify
-        :param str operation:       flag operation
-        :param str flags:           IMAP4 flags to apply
+            :param list[str] mail_ids:  list of mail ids to modify
+            :param str operation:       flag operation
+            :param str flags:           IMAP4 flags to apply
         """
         self.select()
         m = ','.join(mail_ids)

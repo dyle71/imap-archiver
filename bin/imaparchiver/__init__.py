@@ -34,7 +34,7 @@ __copyright__   = 'Copyright 2015-2017 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imaparchiver'
-__version__     = '0.5.0'
+__version__     = '0.5.1'
 
 
 verbose = False
@@ -42,14 +42,13 @@ verbose = False
 
 
 def quote_path(path):
-
-    """Add quotes to mailbox path if necessary.
-
-    :param str path:    a mailbox path
-    :return:            an quoted mailbox path (if necessary)
-    :rtype:             str
     """
+        Add quotes to mailbox path if necessary.
 
+        :param str path:    a mailbox path
+        :return:            an quoted mailbox path (if necessary)
+        :rtype:             str
+    """
     path_quoted = path
     if not ' ' in path_quoted:
         return path_quoted
@@ -63,14 +62,13 @@ def quote_path(path):
 
 
 def strip_path(path):
-
-    """Remove quotes from a mailbox path.
-
-    :param str path:    a mailbox path
-    :return:            an unquoted mailbox path
-    :rtype:             str
     """
+        Remove quotes from a mailbox path.
 
+        :param str path:    a mailbox path
+        :return:            an unquoted mailbox path
+        :rtype:             str
+    """
     path_stripped = path
     while len(path_stripped) > 0 and path_stripped[0] == '"':
         path_stripped = path_stripped[1:]

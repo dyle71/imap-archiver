@@ -40,18 +40,16 @@ class Connection(object):
 
     """This represents a IMAP4 connection."""
 
-
     def __init__(self, host, port, username, password):
-        """Constructor.
-
-        :param str host:        the host to connect
-        :param int port:        the host's port number (if 0 then the default will be used)
-        :param str username:    user account for login
-        :param str password:    user password for login
         """
+            Constructor.
 
+            :param str host:        the host to connect
+            :param int port:        the host's port number (if 0 then the default will be used)
+            :param str username:    user account for login
+            :param str password:    user password for login
+        """
         self._connection = None
-
         self.establish(host, port)
         self.login(username, password)
 
@@ -66,16 +64,15 @@ class Connection(object):
             pass
 
     def create_mailbox(self, path, delimiter):
-
-        """Create a mailbox folder (recurisvely)  on the server.
-
-        The folder path given is created recurisvely. So if path = 'a.b.c.' then
-        the folder 'a' is created, then 'b' and finally 'c'.
-
-        :param str path:        the mailbox folder name as understood by the IMAP4 server.
-        :param str delimiter:   path delimier used
         """
+            Create a mailbox folder (recurisvely)  on the server.
 
+            The folder path given is created recursively. So if path = 'a.b.c.' then
+            the folder 'a' is created, then 'b' and finally 'c'.
+
+            :param str path:        the mailbox folder name as understood by the IMAP4 server.
+            :param str delimiter:   path delimier used
+        """
         if not self._connection:
             raise RuntimeError('No connection to IMAP4 server.')
 
@@ -83,7 +80,6 @@ class Connection(object):
             return
 
         path_stripped = imaparchiver.strip_path(path)
-
         mb = ''
         for path_particle in path_stripped.split(delimiter):
 
@@ -100,13 +96,12 @@ class Connection(object):
 
 
     def establish(self, host, port):
-
-        """Establishes a connection to the IMAP4 server.
-
-        :param str host:    the IMAP4 server host
-        :param int port:    the port to connect to
         """
+            Establishes a connection to the IMAP4 server.
 
+            :param str host:    the IMAP4 server host
+            :param int port:    the port to connect to
+        """
         if imaparchiver.verbose is True:
             print('Connecting... ', end='')
 
@@ -147,13 +142,12 @@ class Connection(object):
 
 
     def login(self, username, password):
-
-        """Run user authentication against a mail server.
-
-        :param str username:    the user account used to log in
-        :param int password:    the user's password for log in
         """
+            Run user authentication against a mail server.
 
+            :param str username:    the user account used to log in
+            :param int password:    the user's password for log in
+        """
         if not self._connection:
             raise RuntimeError('No connection to IMAP4 server.')
 
@@ -188,10 +182,10 @@ class Connection(object):
 
 
     def mailboxes(self, root='INBOX'):
+        """
+            Load all mailboxes from the server.
 
-        """Load all mailboxes from the server.
-
-        :param str root:    top root mailbox
+            :param str root:    top root mailbox
         """
 
         if not self._connection:
