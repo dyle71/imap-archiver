@@ -34,7 +34,7 @@ __copyright__   = 'Copyright 2015-2017 Oliver Maurhart'
 __license__     = 'GPL v3'
 __licenseurl__  = 'http://www.gnu.org/licenses/gpl.html'
 __title__       = 'imaparchiver'
-__version__     = '0.5.1'
+__version__     = '0.6.0'
 
 
 verbose = False

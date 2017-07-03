@@ -91,7 +91,9 @@ class Connection(object):
             if ' ' in mb:
                 mb_quoted = '"' + mb + '"'
 
-            self._connection.create(mb_quoted)
+            r, d = self._connection.select(mb_quoted)
+            if r == 'NO':
+                self._connection.create(mb_quoted)
             self._connection.subscribe(mb_quoted)
 
 
@@ -191,7 +193,10 @@ class Connection(object):
         if not self._connection:
             raise RuntimeError('No connection to IMAP4 server.')
 
-        res, mailbox_list = self._connection.list(root)
+        if root:
+            res, mailbox_list = self._connection.list(root)
+        else:
+            res, mailbox_list = self._connection.list()
         if res != 'OK':
             raise RuntimeError('Server error on listing mailboxes. Returned: ' + str(res))
 

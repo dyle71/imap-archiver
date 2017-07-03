@@ -30,9 +30,14 @@
 import argparse
 import datetime
 import getpass
+import email.utils
+import os
+import os.path
 import sys
+import time
 
 from imaparchiver import Connection
+from imaparchiver import Mailbox
 import imaparchiver
 
 
@@ -59,9 +64,83 @@ def clean(args):
                 mbs[mb].delete()
 
 
+def download(args):
+    """
+        Recursively download messages
+        :param argparse.Namespace args: parsed command line arguments
+    """
+    folder = args.folder
+    print("Recursively downloading messages from IMAP4 '" + args.mailbox + "' to folder '" + folder + "'")
+    try:
+        os.makedirs(folder)
+    except FileExistsError as e:
+        pass
+    except Exception as e:
+        print("Failed to create/access folder '" + folder + "': " + str(e))
+        sys.exit(1)
+            
+    host, port, username, password = parse_connection(args.connect_url, args.verbose)
+    con = Connection(host, port, username, password)
+    
+    mbs = con.mailboxes(args.mailbox)
+    for mb_name in sorted(mbs):
+        
+        m = mbs[mb_name]
+        mail_count = m.select()
+        if mail_count > 0:
+            
+            mail_folder = os.path.join(folder, mb_name.replace(m.delimiter, os.sep))
+            print("Downloading " + str(mail_count) +" mails from mailbox '" + mb_name + "' to '" + mail_folder + "'")
+            
+            r, d = m.search('ALL')
+            if not r == 'OK':
+                print("Failed to list messages in mailbox.")
+                continue
+            
+            for m_id in d[0].decode("utf-8").split(' '):
+                
+                print("Fetching message " + m_id)
+                r, mail_header = m.fetch(m_id, '(BODY.PEEK[HEADER])')
+                try:
+                    header_line = mail_header[0][1].split(b'\r\n')
+                    for l in header_line:
+                        if l.startswith(b'Date:'):
+                            t = email.utils.parsedate(str(l)[8:])
+                            if t:
+                                filename = str(time.mktime(t)) + ".mail"
+                            else:
+                                print("Failed to parse timestamp: " + str(l))
+                                sys.exit(1)
+                        
+                except Exception as e:
+                    print("Failed to fetch message header: " + str(e))
+                    sys.exit(1)
+                    
+                if not filename:
+                    print("Cannot deduce filename for mail.")
+                    sys.exit(1)
+                    
+                print("Writing mail as '" + filename + "'")
+                r, mail_content = m.fetch(m_id, '(BODY[])')
+                if not r == 'OK':
+                    print("Failed to fetch mail body.")
+                    sys.exit(1)
+                    
+                try:
+                    try:
+                        os.makedirs(mail_folder)
+                    except:
+                        pass
+                    f = open(os.path.join(mail_folder, filename), 'wb')
+                    f.write(mail_content[0][1])
+                    f.close()
+                except Exception as e:
+                    print("Failed to write to mail file: " + str(e))
+                    sys.exit(1)
+                    
+
 def main():
     """IMAPArchiver start."""
-    # parse arguments
     parser = argparse.ArgumentParser(description = 'IMAP-Archiver')
 
     parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_const', const=True, default=False,
@@ -77,8 +156,8 @@ def main():
     parser_scan.add_argument('connect_url', metavar='CONNECT-URL',
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
-    parser_scan.add_argument('-m', '--mailbox',
-            help='Top mailbox to start scanning.')
+    parser_scan.add_argument('-m', '--mailbox', 
+            help='Top mailbox to start scanning. Use double quotes if name contains spaces.')
     parser_scan.add_argument('-l', '--list-boxes-only', dest='list_boxes_only', action='store_const',
             const=True, default=False, help='Only list mailbox, do not examine each mail therein.')
     parser_scan.set_defaults(func = scan)
@@ -90,9 +169,9 @@ def main():
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_move.add_argument('mailbox_from', metavar='MAILBOX-FROM',
-            help='Mailbox to start moving from.')
+            help='Mailbox to start moving from. Use double quotes if name contains spaces.')
     parser_move.add_argument('mailbox_to', metavar='MAILBOX-TO',
-            help='Mailbox to move to.')
+            help='Mailbox to move to. Use double quotes if name contains spaces.')
     parser_move.set_defaults(func = move)
 
     parser_clean = subparser.add_parser('clean', help='delete empty mailboxes with no mail or child mailbox.')
@@ -100,8 +179,18 @@ def main():
             help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
                 \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
     parser_clean.add_argument('mailbox', metavar='MAILBOX',
-            help='Top mailbox to start cleaning.')
+            help='Top mailbox to start cleaning. Use double quotes if name contains spaces.')
     parser_clean.set_defaults(func = clean)
+
+    parser_download = subparser.add_parser('download', help='recusively download messages from an IMAP folder')
+    parser_download.add_argument('connect_url', metavar='CONNECT-URL',
+            help='Connection details. Syntax is USER[:PASS]@HOST[:PORT] like \'john@example.com\' or \
+                \'bob:mysecret@mail-server.com:143\'. If password PASS is omitted you are asked for it.')
+    parser_download.add_argument('mailbox', metavar='MAILBOX',
+            help='Top mailbox to start downloading. Use double quotes if name contains spaces.')
+    parser_download.add_argument('folder', metavar='FOLDER',
+            help='Destination folder on disk.')
+    parser_download.set_defaults(func = download)
 
     args = parser.parse_args()
     if args.version:
