@@ -130,6 +130,7 @@ def download(ssl: bool = False, connect: str = None, mailbox: str = None, folder
             for m_id in d[0].decode().split(' '):
 
                 sys.stdout.write(f'Fetching message {m_id}\n')
+                filename = None
                 r, mail_header = m.fetch(m_id, '(BODY.PEEK[HEADER])')
                 try:
                     header_line = mail_header[0][1].split(b'\r\n')
@@ -211,7 +212,7 @@ def move(ssl: bool = False,
     if omit_mailbox is not None:
         omit = omit_mailbox.split(',')
     if year is None:
-       year = max_year()
+        year = max_year()
     if Config().verbose:
         sys.stderr.write(f'Year sent of mails to be moved: < {year}\n')
 
@@ -263,7 +264,7 @@ def scan(ssl: bool = False, mailbox: str = None, list_boxes_only: bool = False, 
     Config().ssl = ssl
     host, port, username, password = Connection.parse(connect)
     con = Connection(host, port, username, password)
-    mbs = con.mailboxes(Mailbox.strip_path(mailbox))
+    mbs = con.mailboxes(Mailbox.strip_path(mailbox or ''))
     header_shown = False
     for mb in sorted(mbs):
 
