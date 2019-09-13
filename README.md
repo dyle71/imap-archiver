@@ -132,6 +132,19 @@ Clean or prune empty subfolders:
 $ imap-archiver.py clean john@example.com INBOX
 ```
 
+Quick install
+-------------
+
+After cloning you may want to run this in a local user environment like this:
+```
+$ python3 setup.py install --user
+$ pip3 install -r requirements.txt
+$ ~/.local/bin/imap-archiver
+```
+
+Hence, this works only for the current logged in user and is not system wide.
+
+
 
 Notes
 -----
