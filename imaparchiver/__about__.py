@@ -20,5 +20,5 @@ __license__ = 'MIT'
 __title__ = 'imaparchiver'
 __summary__ = """A little tool to gather information of installed files of a Debian
 (or derivative) operating system."""
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 __uri__ = 'https://github.com/dyle71/imaparchiver'
